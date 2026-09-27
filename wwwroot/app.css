@@ -477,3 +477,18 @@ h1:focus { outline: none; }
 .chan-tiktok { background: #e8fbfa; color: #0f766e; }
 .chan-facebook { background: #e8effd; color: #1d4ed8; }
 @media (max-width: 520px) { .posts { grid-template-columns: 1fr; } }
+
+/* Billing */
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 18px 0; }
+.plan { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+.plan.hot { border: 1.5px solid transparent; background: linear-gradient(#fff, #fff) padding-box, var(--grad) border-box; }
+.plan.current { background: #fafbff; }
+.plan h3 { display: flex; gap: 8px; align-items: center; margin: 0; }
+.plan-price { font-size: 2.1rem; font-weight: 800; letter-spacing: -.03em; }
+.plan-price small { font-size: .95rem; color: var(--ink-3); font-weight: 600; }
+.plan ul { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; flex: 1; }
+.plan li::before { content: "✓"; color: var(--good); font-weight: 800; margin-right: 8px; }
+.plan form { margin: 0; }
+.app-usage-plan { display: flex; justify-content: space-between; margin-top: 8px; font-size: .78rem; color: #aab0d6; }
+.app-usage-plan a { color: #fff; font-weight: 700; }
+@media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }

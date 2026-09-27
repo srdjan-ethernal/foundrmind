@@ -44,6 +44,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ISocialProvider, LinkedInProvider>();
 builder.Services.AddSingleton<ISocialProvider, XProvider>();
 builder.Services.AddSingleton<SocialService>();
+builder.Services.AddSingleton<Billing>();
 builder.Services.AddHostedService<PostScheduler>();
 
 // Behind Caddy / Azure front ends: trust X-Forwarded-* so we see the real client IP and scheme.
@@ -122,6 +123,38 @@ app.MapGet("/connect/{provider}/callback", async (string provider, string? code,
         return Results.Redirect($"{back}{sep}social_error=failed");
     }
 }).RequireAuthorization();
+
+// Billing: forms on /app/billing post here (antiforgery-validated), we redirect to Stripe-hosted pages.
+app.MapPost("/billing/checkout/{plan}", async (string plan, HttpContext ctx, Billing billing, IDbContextFactory<AppDb> dbf,
+    Microsoft.AspNetCore.Antiforgery.IAntiforgery af) =>
+{
+    await af.ValidateRequestAsync(ctx);
+    if (!billing.IsConfigured || billing.PriceFor(plan) == null) return Results.Redirect("/app/billing?error=unavailable");
+    await using var db = await dbf.CreateDbContextAsync();
+    var user = await db.Users.FindAsync(ctx.User.UserId());
+    if (user == null) return Results.Redirect("/login");
+    if (user.StripeSubscriptionId.Length > 0) return Results.Redirect("/app/billing?error=has_subscription");
+    try { return Results.Redirect(await billing.CreateCheckoutAsync(user, plan, BaseUrl(ctx))); }
+    catch (Stripe.StripeException ex) { app.Logger.LogError(ex, "Stripe checkout failed"); return Results.Redirect("/app/billing?error=stripe"); }
+}).RequireAuthorization();
+
+app.MapPost("/billing/portal", async (HttpContext ctx, Billing billing, IDbContextFactory<AppDb> dbf,
+    Microsoft.AspNetCore.Antiforgery.IAntiforgery af) =>
+{
+    await af.ValidateRequestAsync(ctx);
+    await using var db = await dbf.CreateDbContextAsync();
+    var user = await db.Users.FindAsync(ctx.User.UserId());
+    if (!billing.IsConfigured || user == null || user.StripeCustomerId.Length == 0) return Results.Redirect("/app/billing?error=unavailable");
+    try { return Results.Redirect(await billing.CreatePortalAsync(user, BaseUrl(ctx))); }
+    catch (Stripe.StripeException ex) { app.Logger.LogError(ex, "Stripe portal failed"); return Results.Redirect("/app/billing?error=stripe"); }
+}).RequireAuthorization();
+
+app.MapPost("/stripe/webhook", async (HttpRequest req, Billing billing) =>
+{
+    using var reader = new StreamReader(req.Body);
+    var json = await reader.ReadToEndAsync();
+    return await billing.HandleWebhookAsync(json, req.Headers["Stripe-Signature"].ToString()) ? Results.Ok() : Results.BadRequest();
+}).DisableAntiforgery();
 
 app.MapPost("/logout", async (HttpContext ctx) =>
 {
@@ -210,12 +243,13 @@ app.MapGet("/p/{slug}/thanks", (string slug) => Results.Content($$"""
 
 app.Run();
 
-static string RedirectUri(HttpContext ctx, string provider)
+static string BaseUrl(HttpContext ctx)
 {
     var baseUrl = ctx.RequestServices.GetRequiredService<IConfiguration>()["PUBLIC_BASE_URL"]?.TrimEnd('/');
-    if (string.IsNullOrEmpty(baseUrl)) baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
-    return $"{baseUrl}/connect/{provider}/callback";
+    return string.IsNullOrEmpty(baseUrl) ? $"{ctx.Request.Scheme}://{ctx.Request.Host}" : baseUrl;
 }
+
+static string RedirectUri(HttpContext ctx, string provider) => $"{BaseUrl(ctx)}/connect/{provider}/callback";
 
 static string Trunc(string s, int max) => s.Length > max ? s[..max] : s.Trim();
 

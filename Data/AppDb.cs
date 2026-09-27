@@ -15,6 +15,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        b.Entity<User>().HasIndex(u => u.StripeCustomerId);
         b.Entity<PublishedPage>().HasIndex(p => p.Slug).IsUnique();
         b.Entity<ModuleRun>().HasIndex(r => new { r.ProjectId, r.ModuleKey, r.CreatedAt });
         b.Entity<Lead>().Property(l => l.Value).HasPrecision(12, 2);

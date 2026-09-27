@@ -1,0 +1,93 @@
+@page "/app/billing"
+@attribute [Authorize]
+@layout AppLayout
+@inject IDbContextFactory<AppDb> DbFactory
+@inject Billing BillingSvc
+@inject Usage UsageSvc
+
+<PageTitle>Plan & billing · Foundrmind</PageTitle>
+
+<div class="app-page">
+    <div class="app-head">
+        <div>
+            <h1>Plan &amp; billing</h1>
+            <p class="app-muted">You're on <b>@Plans.Label(user?.Plan ?? Plans.Free)</b>@RenewText. @used.ToString("N0") of @limit.ToString("N0") AI runs used this month.</p>
+        </div>
+        @if (user?.StripeCustomerId.Length > 0 && BillingSvc.IsConfigured)
+        {
+            <form method="post" action="/billing/portal"><AntiforgeryToken /><button class="btn-ghost" type="submit">Manage billing & invoices</button></form>
+        }
+    </div>
+
+    @if (Success == 1) { <div class="notice good">🎉 Thanks! Your subscription is being activated. It can take a few seconds; refresh if your plan hasn't updated yet.</div> }
+    @if (Canceled == 1) { <div class="notice">Checkout cancelled. Nothing was charged.</div> }
+    @if (Error == "stripe") { <div class="notice bad">Couldn't reach the payment provider. Please try again in a minute.</div> }
+    @if (Error == "has_subscription") { <div class="notice">You already have a subscription. Use <b>Manage billing</b> to switch plans or cancel.</div> }
+    @if (Error == "unavailable" || !BillingSvc.IsConfigured) { <div class="notice">Online payments aren't switched on yet. Paid plans will be available here soon.</div> }
+    @if (user?.SubscriptionStatus == "past_due") { <div class="notice bad">Your last payment failed. Update your card in <b>Manage billing</b> to keep your plan.</div> }
+
+    <div class="plans">
+        @foreach (var p in Offer)
+        {
+            var current = (user?.Plan ?? Plans.Free) == p.Key;
+            <div class="plan @(p.Key == Plans.Pro ? "hot" : "") @(current ? "current" : "")">
+                <h3>@p.Name @if (current) { <span class="tag live">Current plan</span> }</h3>
+                <div class="plan-price">@p.Price<small>@(p.Key == Plans.Free ? "" : "/mo")</small></div>
+                <ul>
+                    @foreach (var f in p.Features) { <li>@f</li> }
+                </ul>
+                @if (current)
+                {
+                    <button class="btn-ghost full" disabled>Your plan</button>
+                }
+                else if (p.Key == Plans.Free)
+                {
+                    @if (user?.StripeCustomerId.Length > 0 && BillingSvc.IsConfigured)
+                    {
+                        <form method="post" action="/billing/portal"><AntiforgeryToken /><button class="btn-ghost full" type="submit">Downgrade in billing portal</button></form>
+                    }
+                }
+                else if (user?.StripeSubscriptionId.Length > 0)
+                {
+                    <form method="post" action="/billing/portal"><AntiforgeryToken /><button class="btn-ghost full" type="submit" disabled="@(!BillingSvc.IsConfigured)">Switch in billing portal</button></form>
+                }
+                else
+                {
+                    <form method="post" action="/billing/checkout/@p.Key"><AntiforgeryToken /><button class="btn full" type="submit" disabled="@(!BillingSvc.IsConfigured)">Upgrade to @p.Name</button></form>
+                }
+            </div>
+        }
+    </div>
+    <p class="app-muted small">Payments are processed securely by Stripe. Cancel anytime; your plan stays active until the end of the paid period.</p>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+    [SupplyParameterFromQuery] public int? Success { get; set; }
+    [SupplyParameterFromQuery] public int? Canceled { get; set; }
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+
+    record Offering(string Key, string Name, string Price, string[] Features);
+    static readonly Offering[] Offer =
+    {
+        new(Plans.Free, "Free", "$0", new[] { $"{Plans.MonthlyRuns(Plans.Free)} AI runs / month", "2 businesses", "All modules", "Publish pages, CRM, social calendar" }),
+        new(Plans.Pro, "Pro", "$99", new[] { $"{Plans.MonthlyRuns(Plans.Pro):N0} AI runs / month", "Unlimited businesses", "Unlimited pages", "Priority generation" }),
+        new(Plans.Scale, "Scale", "$399", new[] { $"{Plans.MonthlyRuns(Plans.Scale):N0} AI runs / month", "5 team seats (soon)", "Custom domains (soon)", "Priority support" }),
+    };
+
+    Data.User? user;
+    int used, limit;
+
+    string RenewText => user?.PlanRenewsAt is { } d
+        ? (user.CancelAtPeriodEnd ? $" until {d.ToLocalTime():MMM d, yyyy} (cancelled)" : $", renews {d.ToLocalTime():MMM d, yyyy}")
+        : "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uid = (await AuthState!).User.UserId();
+        if (uid == null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        user = await db.Users.FindAsync(uid.Value);
+        (used, limit) = await UsageSvc.GetAsync(uid.Value);
+    }
+}

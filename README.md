@@ -31,6 +31,7 @@ dotnet user-secrets set ANTHROPIC_API_KEY "<your key>"
 | `PUBLIC_BASE_URL` | Public origin used for OAuth redirect URLs, e.g. `https://foundrmind.com` (defaults to the request host) |
 | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | Enables LinkedIn auto-posting (optional `LINKEDIN_API_VERSION`, default `202606`) |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | Enables X auto-posting |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE` | Enables paid plans (see Billing) |
 
 **Database schema:** PostgreSQL uses EF Core migrations (`Data/Migrations`), applied automatically on startup. Local SQLite uses `EnsureCreated`; delete `foundrmind.db` after model changes. Add a migration with `dotnet tool restore && dotnet ef migrations add <Name> -o Data/Migrations`.
 
@@ -42,6 +43,17 @@ The Social calendar (`/app/p/{id}/social`) imports Content Reactor calendars, an
 - **X:** create an app at developer.x.com, enable OAuth 2.0 (type *Web App*, read and write), and register the callback `{PUBLIC_BASE_URL}/connect/x/callback`. Posting needs an API tier that allows creating posts.
 - Instagram, TikTok and Facebook require business accounts and platform app review, so they run in reminder mode for now.
 - Tokens are encrypted at rest with ASP.NET Data Protection, so keep `DATA_PROTECTION_PATH` persistent.
+
+## Billing (Stripe)
+
+Plans: Free, Pro ($99/mo), Scale ($399/mo). Stripe Checkout handles payment, the Stripe Customer Portal handles card changes, plan switches and cancellation, and webhooks set the user's plan.
+
+1. In the Stripe dashboard create two recurring monthly prices (Pro $99, Scale $399) and note their `price_...` IDs.
+2. Enable the Customer Portal (Settings → Billing → Customer portal) and allow switching between the two prices and cancelling.
+3. Add a webhook endpoint `{PUBLIC_BASE_URL}/stripe/webhook` with events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`.
+4. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`. Use test-mode keys first (`sk_test_...`, card `4242 4242 4242 4242`).
+
+Without these settings the billing page shows the plans with upgrades disabled.
 
 ## Deploy: Hetzner (VPS + Docker)
 

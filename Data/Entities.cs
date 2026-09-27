@@ -7,6 +7,11 @@ public class User
     public string Name { get; set; } = "";
     public string PasswordHash { get; set; } = "";
     public string Plan { get; set; } = Plans.Free;
+    public string StripeCustomerId { get; set; } = "";
+    public string StripeSubscriptionId { get; set; } = "";
+    public string SubscriptionStatus { get; set; } = "";
+    public DateTime? PlanRenewsAt { get; set; }
+    public bool CancelAtPeriodEnd { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<Project> Projects { get; set; } = new();
 }
@@ -16,6 +21,8 @@ public static class Plans
     public const string Free = "free";
     public const string Pro = "pro";
     public const string Scale = "scale";
+
+    public static string Label(string plan) => plan switch { Pro => "Pro", Scale => "Scale", _ => "Free" };
 
     public static int MonthlyRuns(string plan) => plan switch
     {

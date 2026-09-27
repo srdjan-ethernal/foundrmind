@@ -42,6 +42,7 @@
             <div class="app-usage">
                 <div class="app-usage-row"><span>AI runs this month</span><b>@used / @limit</b></div>
                 <div class="app-bar"><i style="width:@(Math.Min(100, limit == 0 ? 0 : used * 100 / limit))%"></i></div>
+                <div class="app-usage-plan"><span>@Plans.Label(plan) plan</span><a href="/app/billing">@(plan == Plans.Free ? "Upgrade →" : "Billing")</a></div>
             </div>
             <div class="app-user">
                 <span>@userName</span>
@@ -67,6 +68,7 @@
     int? currentId;
     int used, limit;
     string userName = "";
+    string plan = Plans.Free;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -83,6 +85,7 @@
         projects = await db.Projects.Where(p => p.UserId == uid).OrderByDescending(p => p.CreatedAt).ToListAsync();
         current = projects.FirstOrDefault(p => p.Id == currentId);
         (used, limit) = await UsageSvc.GetAsync(uid.Value);
+        plan = await db.Users.Where(u => u.Id == uid).Select(u => u.Plan).FirstOrDefaultAsync() ?? Plans.Free;
     }
 
     static string Initial(string s) => string.IsNullOrWhiteSpace(s) ? "?" : s.Trim()[..1].ToUpperInvariant();

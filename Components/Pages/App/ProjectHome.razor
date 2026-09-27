@@ -42,7 +42,7 @@ else if (Project != null)
         }
 
         <div class="stats">
-            <div class="stat"><span>Modules used</span><b>@doneKeys.Count / @Modules.All.Length</b></div>
+            <div class="stat"><span>Modules used</span><b>@doneKeys.Count(k => Modules.Get(k) != null) / @Modules.All.Length</b></div>
             <div class="stat"><span>Leads</span><b>@leads</b></div>
             <div class="stat @(due > 0 ? "hot" : "")"><span>Follow-ups due</span><b>@due</b></div>
             <div class="stat"><span>Page views</span><b>@views</b></div>
@@ -103,6 +103,21 @@ else if (Project != null)
                 </details>
             </section>
         </div>
+
+        <section class="panel">
+            <h2>Growth toolkit</h2>
+            <p class="app-muted">Use these whenever you need them. They read the same brief.</p>
+            <div class="toolkit">
+                @foreach (var m in Modules.All.Where(m => !Modules.LaunchKeys.Contains(m.Key)))
+                {
+                    <a class="tool @(doneKeys.Contains(m.Key) ? "used" : "")" href="/app/p/@Id/m/@m.Key">
+                        <span class="tool-icon">@m.Icon</span>
+                        <span class="tool-body"><b>@m.Name</b><span>@m.Tagline</span></span>
+                        @if (doneKeys.Contains(m.Key)) { <span class="tool-check">✓</span> }
+                    </a>
+                }
+            </div>
+        </section>
     </div>
 }
 

@@ -27,7 +27,7 @@
     <section class="lp-hero">
         <div class="lp-glow" aria-hidden="true"></div>
         <div class="lp-hero-copy">
-            <span class="lp-pill"><span class="lp-dot"></span> 7 AI modules live · no credit card</span>
+            <span class="lp-pill"><span class="lp-dot"></span> @LiveCount AI modules live · no credit card</span>
             <h1>An AI co-founder that <span class="lp-grad">does the work</span>, not just the talking.</h1>
             <p class="lp-lead">
                 Describe your idea once. Foundrmind researches your market, builds and publishes your landing page,
@@ -73,7 +73,7 @@
     </section>
 
     <section class="lp-section" id="modules">
-        <h2>Seven modules. One brain.</h2>
+        <h2>@LiveCount modules. One brain.</h2>
         <p class="lp-sub">Other tools make you re-explain your business in every tab. In Foundrmind, the page, the posts, the emails and the CRM all come from the same brief, so they stay consistent.</p>
         <div class="lp-grid">
             @foreach (var m in Modules.All)
@@ -94,7 +94,7 @@
         </div>
         <div class="lp-roadmap">
             <span>On the roadmap:</span>
-            <em>Ads Studio</em><em>SEO Blog Writer</em><em>Social auto-posting</em><em>Proposals &amp; invoices</em><em>Podcast Studio</em><em>Custom domains</em><em>Team seats</em>
+            <em>Social auto-posting</em><em>Invoices &amp; payments</em><em>Custom domains</em><em>Team seats</em><em>Analytics dashboard</em>
         </div>
     </section>
 
@@ -134,18 +134,18 @@
         <div class="lp-prices">
             <div class="lp-price">
                 <h3>Free</h3><div class="lp-amount">$0</div>
-                <ul class="lp-check"><li>30 AI runs / month</li><li>2 businesses</li><li>All 7 modules</li><li>Publish landing pages</li><li>CRM with lead capture</li></ul>
+                <ul class="lp-check"><li>30 AI runs / month</li><li>2 businesses</li><li>All @LiveCount modules</li><li>Publish landing pages</li><li>CRM with lead capture</li></ul>
                 <a href="/signup" class="lp-btn lp-btn-ghost">Start free</a>
             </div>
             <div class="lp-price lp-price-hot">
                 <span class="lp-ribbon">Most popular</span>
                 <h3>Pro</h3><div class="lp-amount">$99<small>/mo</small></div>
-                <ul class="lp-check"><li>500 AI runs / month</li><li>Unlimited businesses</li><li>Unlimited pages</li><li>Priority generation</li><li>Everything in Free</li></ul>
+                <ul class="lp-check"><li>1,500 AI runs / month</li><li>Unlimited businesses</li><li>Unlimited pages</li><li>Priority generation</li><li>Everything in Free</li></ul>
                 <a href="/signup" class="lp-btn">Start free, upgrade later</a>
             </div>
             <div class="lp-price">
                 <h3>Scale</h3><div class="lp-amount">$399<small>/mo</small></div>
-                <ul class="lp-check"><li>2,000 AI runs / month</li><li>Team seats <em>(soon)</em></li><li>Custom domains <em>(soon)</em></li><li>Everything in Pro</li></ul>
+                <ul class="lp-check"><li>5,000 AI runs / month</li><li>5 team seats <em>(soon)</em></li><li>Custom domains for your pages <em>(soon)</em></li><li>Priority support</li><li>Everything in Pro</li></ul>
                 <a href="/signup" class="lp-btn lp-btn-ghost">Start free</a>
             </div>
         </div>
@@ -224,3 +224,8 @@
   });
 })();
 </script>
+
+@code {
+    // All AI modules plus the CRM.
+    static int LiveCount => Modules.All.Length + 1;
+}

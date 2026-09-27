@@ -21,12 +21,19 @@
             <div class="app-side-label">@current.Name</div>
             <nav class="app-modules">
                 <NavLink href="@($"/app/p/{current.Id}")" Match="NavLinkMatch.All">🏠 Launch path</NavLink>
-                @foreach (var m in Modules.All)
+                @foreach (var m in Modules.LaunchKeys.Select(k => Modules.Get(k)!))
                 {
                     <NavLink href="@($"/app/p/{current.Id}/m/{m.Key}")">@m.Icon @m.Name</NavLink>
                 }
                 <NavLink href="@($"/app/p/{current.Id}/crm")">🤝 CRM</NavLink>
                 <NavLink href="@($"/app/p/{current.Id}/pages")">🌐 Published pages</NavLink>
+            </nav>
+            <div class="app-side-label">Grow</div>
+            <nav class="app-modules">
+                @foreach (var m in Modules.All.Where(m => !Modules.LaunchKeys.Contains(m.Key)))
+                {
+                    <NavLink href="@($"/app/p/{current.Id}/m/{m.Key}")">@m.Icon @m.Name</NavLink>
+                }
             </nav>
         }
 

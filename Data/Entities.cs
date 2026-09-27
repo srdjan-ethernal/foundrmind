@@ -19,8 +19,8 @@ public static class Plans
 
     public static int MonthlyRuns(string plan) => plan switch
     {
-        Pro => 500,
-        Scale => 2000,
+        Pro => 1500,
+        Scale => 5000,
         _ => 30,
     };
 }

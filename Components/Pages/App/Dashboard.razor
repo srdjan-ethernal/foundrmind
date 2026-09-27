@@ -50,7 +50,7 @@
         var uid = (await AuthState!).User.UserId();
         await using var db = await DbFactory.CreateDbContextAsync();
         rows = await db.Projects.Where(p => p.UserId == uid).OrderByDescending(p => p.CreatedAt)
-            .Select(p => new Row(p, p.Runs.Select(r => r.ModuleKey).Distinct().Count(), p.Leads.Count, p.Pages.Count))
+            .Select(p => new Row(p, p.Runs.Where(r => r.ModuleKey != "crm-followup").Select(r => r.ModuleKey).Distinct().Count(), p.Leads.Count, p.Pages.Count))
             .ToListAsync();
     }
 }

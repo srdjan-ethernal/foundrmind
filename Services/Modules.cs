@@ -154,7 +154,157 @@ public static class Modules
                 For each email: "### Email N — send on day X", subject line + 2 alternatives, preview text, then the full body (plain, personal, one idea per email, one clear CTA). Short paragraphs; no hype.
                 End with a note on which metric to watch per email.
                 """),
+
+        new("ads", "Ads Studio", "📣",
+            "Complete paid-ad campaigns: structure, audiences, ad copy variations and a test plan.",
+            "An agency retainer",
+            new[]
+            {
+                new ModuleField("platform", "Platform", Type: "select", Options: new[] { "Meta (Facebook & Instagram)", "Google Search", "LinkedIn", "TikTok", "YouTube" }, Default: "Meta (Facebook & Instagram)"),
+                new ModuleField("goal", "Campaign goal", Type: "select", Options: new[] { "Leads / waitlist sign-ups", "Sales", "Traffic to content", "Brand awareness", "Retargeting" }, Default: "Leads / waitlist sign-ups"),
+                new ModuleField("budget", "Monthly budget", "e.g. $500"),
+                new ModuleField("offer", "What are you advertising?", "e.g. the free 7-day meal plan", "textarea"),
+            },
+            OutputKind.Markdown, WebSearch: false,
+            (p, i) => $"""
+                Plan a paid campaign.
+                Platform: {Or(i, "platform", "Meta")}
+                Goal: {Or(i, "goal", "Leads")}
+                Monthly budget: {Or(i, "budget", "not given — recommend a sensible test budget")}
+                Offer being advertised: {Or(i, "offer", "the core offer of the business")}
+
+                ## Campaign structure (campaign → ad sets/ad groups, objective, bidding, budget split, schedule)
+                ## Audiences / keywords (for search: keyword groups with match types and negatives; for social: 3 audiences with targeting details and why)
+                ## Ad copy: 10 variations as a table (angle, headline, primary text/description, CTA). Respect the platform's character limits and state them.
+                ## Creative concepts (5: format, what's on screen, hook in the first 2 seconds)
+                ## Landing page checklist for this campaign
+                ## 14-day test plan (what to test first, kill/scale rules with concrete thresholds, KPIs to watch)
+                Do not invent benchmark numbers; if you give typical ranges, label them as rough estimates.
+                """),
+
+        new("seo", "SEO Blog Writer", "✍️",
+            "Search-optimised articles researched against what already ranks.",
+            "A day of writing per article",
+            new[]
+            {
+                new ModuleField("keyword", "Target keyword or topic", "e.g. healthy meals for night shift workers"),
+                new ModuleField("intent", "Reader intent", Type: "select", Options: new[] { "Informational (how-to / guide)", "Commercial (best / vs / review)", "Transactional (buy / pricing)" }, Default: "Informational (how-to / guide)"),
+                new ModuleField("length", "Length", Type: "select", Options: new[] { "~1,000 words", "~1,800 words", "~2,500 words" }, Default: "~1,800 words"),
+            },
+            OutputKind.Markdown, WebSearch: true,
+            (p, i) => $"""
+                Write an SEO article.
+                Target keyword/topic: {Or(i, "keyword", "the highest-intent topic for this audience — choose it and say why")}
+                Intent: {Or(i, "intent", "Informational")}
+                Length: {Or(i, "length", "~1,800 words")}
+
+                First search the web for this keyword: look at what currently ranks and what those pages miss. Then:
+                ## SEO brief (primary keyword, 5–8 secondary keywords, search intent, the gap we fill vs current top results with links)
+                ## Meta title (≤ 60 chars) and meta description (≤ 155 chars), 2 options each
+                ## URL slug
+                Then the complete article in markdown: H1, a hook intro, H2/H3 structure, practical specifics, a natural mention of the business's offer with a CTA, and an FAQ section (4–6 questions) at the end.
+                Close with: internal link suggestions and one image idea per H2.
+                """),
+
+        new("brand", "Brand Kit", "🎨",
+            "Positioning, voice, taglines, colour palette, fonts and logo concepts.",
+            "A branding workshop",
+            new[]
+            {
+                new ModuleField("feel", "How should the brand feel?", "e.g. calm, trustworthy, a bit playful"),
+                new ModuleField("avoid", "Anything to avoid?", "e.g. clichéd health greens, corporate blue"),
+            },
+            OutputKind.Markdown, WebSearch: false,
+            (p, i) => $"""
+                Create a brand kit.
+                Desired feel: {Or(i, "feel", "derive it from the audience and tone")}
+                Avoid: {Or(i, "avoid", "nothing specific")}
+
+                ## Brand core (purpose, promise, personality in 3 words, the enemy we stand against)
+                ## Positioning statement and elevator pitch (10 seconds and 30 seconds)
+                ## 8 tagline options (mark the top 2)
+                ## Voice & tone guide (we are / we are not table, words we use / avoid, 3 before→after rewrites)
+                ## Colour palette: 5–6 colours as a table (name, hex, role: primary/accent/background/text, and why). Check that text/background pairs meet WCAG AA contrast and say which pairs to use.
+                ## Typography: 2 Google Font pairings (headings + body) with the reasoning
+                ## Logo concepts (4 directions: idea, mark description, which palette colours)
+                ## Imagery & social templates guidance
+                """),
+
+        new("proposal", "Proposal Writer", "📝",
+            "Client proposals that sell: scope, timeline, three pricing options and terms.",
+            "Hours per proposal",
+            new[]
+            {
+                new ModuleField("client", "Client", "e.g. St. Mary's Hospital nursing staff wellness program"),
+                new ModuleField("need", "What do they need?", "Their problem, context, anything from the call", "textarea"),
+                new ModuleField("budget", "Budget signals", "e.g. around $5k, decision by end of month"),
+            },
+            OutputKind.Markdown, WebSearch: false,
+            (p, i) => $"""
+                Write a client proposal.
+                Client: {Or(i, "client", "a typical ideal client — make it clear this is a template")}
+                Their need / context: {Or(i, "need", "infer the most common need of the target audience")}
+                Budget signals: {Or(i, "budget", "unknown")}
+
+                ## Executive summary (their situation, the outcome, why us — in their language)
+                ## Understanding of the problem
+                ## Proposed approach and deliverables
+                ## Timeline (table: phase, what happens, duration)
+                ## Investment: three options (Good / Better / Best) as a table with what's included; anchor on the middle option
+                ## Why us (specific, no invented credentials or client names — leave clearly marked placeholders for real case studies)
+                ## Next steps and terms (validity, payment schedule, what we need from them)
+                Keep it scannable and persuasive; no fluff.
+                """),
+
+        new("sales", "Sales Scripts", "📞",
+            "Discovery-call script, objection handling and DM/email openers that don't feel salesy.",
+            "Weeks of trial and error",
+            new[]
+            {
+                new ModuleField("channel", "Main sales channel", Type: "select", Options: new[] { "Discovery calls", "LinkedIn DMs", "Cold email", "Instagram DMs", "In person" }, Default: "Discovery calls"),
+                new ModuleField("objections", "Objections you hear", "e.g. too expensive, no time, I'll do it myself", "textarea"),
+            },
+            OutputKind.Markdown, WebSearch: false,
+            (p, i) => $"""
+                Build a sales playbook for this business.
+                Main channel: {Or(i, "channel", "Discovery calls")}
+                Objections heard so far: {Or(i, "objections", "none recorded — anticipate the 6 most likely ones")}
+
+                ## Discovery call script (opening, 8–10 diagnostic questions in order, how to summarise their pain back, transition to the offer, close/next step). Include what to listen for after each question.
+                ## Objection handling (table: objection, what's really behind it, response, follow-up question)
+                ## 5 openers for the main channel that are about the prospect, not us (personalised hooks, short, one low-friction ask)
+                ## Follow-up cadence (day-by-day for 14 days, with the message for each touch)
+                ## Qualification checklist (when to walk away)
+                """),
+
+        new("podcast", "Podcast Studio", "🎙️",
+            "Episode plans, interview questions, intro script, show notes and clip ideas.",
+            "Hours of prep per episode",
+            new[]
+            {
+                new ModuleField("topic", "Episode topic", "e.g. how nurses meal-prep on a 3-shift rotation"),
+                new ModuleField("format", "Format", Type: "select", Options: new[] { "Solo", "Interview", "Co-hosted", "Q&A from listeners" }, Default: "Interview"),
+                new ModuleField("guest", "Guest (if any)", "Name and why they're interesting"),
+            },
+            OutputKind.Markdown, WebSearch: false,
+            (p, i) => $"""
+                Plan a podcast episode.
+                Topic: {Or(i, "topic", "the most compelling topic for this audience — choose it and say why")}
+                Format: {Or(i, "format", "Interview")}
+                Guest: {Or(i, "guest", "none")}
+
+                ## 5 episode title options (mark the best)
+                ## Cold open + intro script (word for word, under 60 seconds)
+                ## Run of show with timestamps (segments, what each achieves)
+                ## Questions / talking points (15 for interviews, in order, with follow-up prompts; for solo: a full outline with key lines)
+                ## Mid-roll mention of the business's offer (natural, 20 seconds)
+                ## Outro with a single call to action
+                ## Show notes (SEO-friendly summary, key takeaways, links placeholders) and 5 short clip ideas for social with the hook line for each
+                """),
     };
+
+    /// <summary>Modules on the guided launch path, in order; the rest form the growth toolkit.</summary>
+    public static readonly string[] LaunchKeys = { "niche", "product", "funnel", "content", "email", "youtube" };
 
     public static ModuleDef? Get(string key) => All.FirstOrDefault(m => m.Key == key);
 

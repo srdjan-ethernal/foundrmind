@@ -189,13 +189,27 @@
       .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
       .replace(/^[-*] (.*)$/gm, '<li>$1</li>')
       .replace(/\n{2,}/g, '<br>');
+  const next = '<div class="lp-demo-next">Like it? This was the 30-second version. <a href="/signup">Create a free account</a> to get the full, web-researched profile, then a landing page, content and emails built on it.</div>';
+  const playSample = async ideaText => {
+    const short = ideaText.length > 60 ? ideaText.slice(0, 60) + '…' : ideaText;
+    const sample = `## The sharpest angle\nPreview mode: this is an example snapshot. For "${short}", start with one narrow segment that feels the pain weekly and already pays for workarounds.\n\n## Your first customer\n- Who: a busy owner-operator who has tried DIY tools and quit\n- Trigger: a missed deadline or lost client that made the problem expensive\n- In their words: "I know what to do, I just never have the time to do it properly."\n\n## Offer to test this week\n**Done-with-you Sprint**: a 7-day setup with a clear deliverable, priced as a no-brainer pilot, with a simple guarantee.\n\n## 3 moves for the next 7 days\n- Interview 5 people from the segment and collect their exact phrases\n- Publish a one-page offer with a waitlist form\n- Post three stories from the interviews on the channel they use most\n\n## Biggest risk\nBuilding before selling. Pre-sell 3 pilots before you build anything big.`;
+    let text = '';
+    for (const word of sample.split(' ')) {
+      text += word + ' ';
+      out.innerHTML = render(text);
+      out.scrollTop = out.scrollHeight;
+      await new Promise(r => setTimeout(r, 18));
+    }
+    out.innerHTML = render(text) + next;
+  };
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (idea.value.trim().length < 8) { idea.focus(); return; }
     go.disabled = true; go.textContent = 'Thinking…';
     out.innerHTML = '<p class="lp-muted lp-typing">Analysing your idea</p>';
     try {
-      const res = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea: idea.value }) });
+      const res = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea: idea.value }) }).catch(() => null);
+      if (!res || [404, 405].includes(res.status)) { await playSample(idea.value); return; } // static preview (no backend)
       if (!res.ok) { out.innerHTML = '<p>' + esc(await res.text()) + '</p>'; return; }
       const reader = res.body.getReader(), dec = new TextDecoder(); let text = '';
       for (;;) {
@@ -204,7 +218,7 @@
         out.innerHTML = render(text);
         out.scrollTop = out.scrollHeight;
       }
-      out.innerHTML = render(text) + '<div class="lp-demo-next">Like it? This was the 30-second version. <a href="/signup">Create a free account</a> to get the full, web-researched profile, then a landing page, content and emails built on it.</div>';
+      out.innerHTML = render(text) + next;
     } catch { out.innerHTML = '<p>Something went wrong. Please try again.</p>'; }
     finally { go.disabled = false; go.textContent = 'Generate ✨'; }
   });

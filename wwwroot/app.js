@@ -6,5 +6,6 @@ window.fm = {
     a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
-  scrollBottom: (el) => { if (el) el.scrollTop = el.scrollHeight; }
+  scrollBottom: (el) => { if (el) el.scrollTop = el.scrollHeight; },
+  tzOffset: () => new Date().getTimezoneOffset()
 };

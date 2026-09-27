@@ -159,6 +159,16 @@ else if (Project != null)
                             }
                         </div>
                     }
+                    @if (Key == "content" && runId != null)
+                    {
+                        <div class="publish">
+                            <div>
+                                <b>📅 Schedule these posts</b>
+                                <span class="app-muted small">@ContentParser.Parse(output).Count posts ready to import. LinkedIn and X can publish automatically.</span>
+                            </div>
+                            <div><a class="btn" href="/app/p/@Id/social?import=@runId">Send to social calendar →</a></div>
+                        </div>
+                    }
                     <div class="refine">
                         <input placeholder="Refine it: “shorter”, “more premium”, “add a section on pricing”…" @bind="refineText" @bind:event="oninput" @onkeydown="RefineKey" />
                         <button class="btn-ghost" disabled="@(string.IsNullOrWhiteSpace(refineText) || quotaOut)" @onclick="() => Run(refineText)">Refine</button>

@@ -40,6 +40,11 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<Ai>();
 builder.Services.AddSingleton<DemoLimiter>();
 builder.Services.AddScoped<Usage>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ISocialProvider, LinkedInProvider>();
+builder.Services.AddSingleton<ISocialProvider, XProvider>();
+builder.Services.AddSingleton<SocialService>();
+builder.Services.AddHostedService<PostScheduler>();
 
 // Behind Caddy / Azure front ends: trust X-Forwarded-* so we see the real client IP and scheme.
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
@@ -54,7 +59,9 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDb>>().CreateDbContext();
-    db.Database.EnsureCreated();
+    // Postgres: versioned migrations. SQLite (local dev): create schema directly; delete the .db file after model changes.
+    if (db.Database.IsNpgsql()) db.Database.Migrate();
+    else db.Database.EnsureCreated();
 }
 
 app.UseForwardedHeaders();
@@ -72,6 +79,49 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+// Social account OAuth: /connect/{provider}?returnUrl=/app/p/1/social → provider → /connect/{provider}/callback
+app.MapGet("/connect/{provider}", (string provider, string? returnUrl, HttpContext ctx, SocialService social, IDataProtectionProvider dp) =>
+{
+    var p = social.ByKey(provider);
+    if (p == null || !p.IsConfigured) return Results.BadRequest("This network isn't set up on the server.");
+    var (verifier, challenge) = SocialService.Pkce();
+    var state = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+    var back = returnUrl is { Length: > 0 } r && r.StartsWith("/app/") ? r : "/app";
+    var payload = System.Text.Json.JsonSerializer.Serialize(new OAuthState(state, verifier, provider, back));
+    ctx.Response.Cookies.Append("fm_oauth", dp.CreateProtector("Foundrmind.OAuthState").Protect(payload),
+        new CookieOptions { HttpOnly = true, Secure = ctx.Request.IsHttps, SameSite = SameSiteMode.Lax, MaxAge = TimeSpan.FromMinutes(10) });
+    return Results.Redirect(p.AuthorizeUrl(RedirectUri(ctx, provider), state, challenge));
+}).RequireAuthorization();
+
+app.MapGet("/connect/{provider}/callback", async (string provider, string? code, string? state, string? error, HttpContext ctx,
+    SocialService social, IDataProtectionProvider dp, ILogger<Program> log) =>
+{
+    var raw = ctx.Request.Cookies["fm_oauth"];
+    ctx.Response.Cookies.Delete("fm_oauth");
+    OAuthState? saved = null;
+    try { saved = raw == null ? null : System.Text.Json.JsonSerializer.Deserialize<OAuthState>(dp.CreateProtector("Foundrmind.OAuthState").Unprotect(raw)); }
+    catch (System.Security.Cryptography.CryptographicException) { }
+    var back = saved?.ReturnUrl ?? "/app";
+    var sep = back.Contains('?') ? '&' : '?';
+    var p = social.ByKey(provider);
+    var uid = ctx.User.UserId();
+    if (p == null || saved == null || saved.Provider != provider || saved.State != state || uid == null)
+        return Results.Redirect($"{back}{sep}social_error=expired");
+    if (error != null || code == null)
+        return Results.Redirect($"{back}{sep}social_error=denied");
+    try
+    {
+        var (tokens, profile) = await p.ExchangeAsync(code, RedirectUri(ctx, provider), saved.Verifier, ctx.RequestAborted);
+        await social.SaveAccountAsync(uid.Value, p, tokens, profile);
+        return Results.Redirect($"{back}{sep}connected={provider}");
+    }
+    catch (Exception ex)
+    {
+        log.LogWarning(ex, "OAuth exchange with {Provider} failed", provider);
+        return Results.Redirect($"{back}{sep}social_error=failed");
+    }
+}).RequireAuthorization();
 
 app.MapPost("/logout", async (HttpContext ctx) =>
 {
@@ -160,6 +210,13 @@ app.MapGet("/p/{slug}/thanks", (string slug) => Results.Content($$"""
 
 app.Run();
 
+static string RedirectUri(HttpContext ctx, string provider)
+{
+    var baseUrl = ctx.RequestServices.GetRequiredService<IConfiguration>()["PUBLIC_BASE_URL"]?.TrimEnd('/');
+    if (string.IsNullOrEmpty(baseUrl)) baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
+    return $"{baseUrl}/connect/{provider}/callback";
+}
+
 static string Trunc(string s, int max) => s.Length > max ? s[..max] : s.Trim();
 
 static string WireLeadForm(string html, string slug)
@@ -173,3 +230,4 @@ static string WireLeadForm(string html, string slug)
 }
 
 record DemoInput(string? Idea);
+record OAuthState(string State, string Verifier, string Provider, string ReturnUrl);

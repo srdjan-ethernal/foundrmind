@@ -1,0 +1,355 @@
+@page "/app/p/{Id:int}/social"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inherits ProjectBase
+@inject SocialService SocialSvc
+@inject IJSRuntime JS
+
+<PageTitle>Social calendar · @(Project?.Name) · Foundrmind</PageTitle>
+
+@if (NotFound)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page wide">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app/p/@Id">@Project.Name</a> / Social calendar</div>
+                <h1>📅 Social calendar</h1>
+                <p class="app-muted">Import posts from the Content Reactor, adjust them, and let Foundrmind publish on schedule. Channels without an API get a reminder and one-click copy.</p>
+            </div>
+            <button class="btn" @onclick="() => importing = !importing">@(importing ? "Close" : "⬇ Import from Content Reactor")</button>
+        </div>
+
+        @if (Connected is { Length: > 0 }) { <div class="notice good">✓ @(SocialSvc.ByKey(Connected)?.Name) connected. Scheduled posts for it will now publish automatically.</div> }
+        @if (SocialError is { Length: > 0 }) { <div class="notice bad">@ErrorText(SocialError)</div> }
+        @if (message != null) { <div class="notice @(messageGood ? "good" : "bad")">@message</div> }
+
+        <div class="accounts">
+            @foreach (var p in SocialSvc.Providers)
+            {
+                var acc = accounts.FirstOrDefault(a => a.Provider == p.Key);
+                <div class="account">
+                    <div class="account-name"><b>@p.Name</b>
+                        @if (acc != null) { <span class="tag live">● @acc.DisplayName</span> }
+                        else if (!p.IsConfigured) { <span class="tag">Not set up</span> }
+                    </div>
+                    @if (acc != null)
+                    {
+                        <span class="app-muted small">Auto-posting on@(acc.ExpiresAt is { } e && string.IsNullOrEmpty(acc.RefreshTokenEnc) ? $" · reconnect by {e.ToLocalTime():MMM d}" : "")</span>
+                        <button class="chip" @onclick="() => Disconnect(p.Key)">Disconnect</button>
+                    }
+                    else if (p.IsConfigured)
+                    {
+                        <span class="app-muted small">Connect to publish automatically.</span>
+                        <button class="btn btn-sm" @onclick="() => Connect(p.Key)">Connect</button>
+                    }
+                    else
+                    {
+                        <span class="app-muted small" title="@p.SetupHint">Server admin: add API keys to enable. Until then, use Copy + Open composer.</span>
+                    }
+                </div>
+            }
+            <div class="account manual-note">
+                <div class="account-name"><b>Instagram · TikTok · Facebook · others</b></div>
+                <span class="app-muted small">Posted by you: when a post is due it's highlighted here with the copy ready.</span>
+            </div>
+        </div>
+
+        @if (importing)
+        {
+            <div class="panel">
+                <h2>Import a content calendar</h2>
+                @if (contentRuns.Count == 0)
+                {
+                    <p class="app-muted">No Content Reactor calendars yet. <a href="/app/p/@Id/m/content">Create one first</a>.</p>
+                }
+                else
+                {
+                    <div class="grid4">
+                        <label class="field">Calendar
+                            <select @bind="importRunId">
+                                @foreach (var r in contentRuns) { <option value="@r.Id">@r.CreatedAt.ToLocalTime().ToString("MMM d, HH:mm") · @Summary(r)</option> }
+                            </select>
+                        </label>
+                        <label class="field">Day 1 is
+                            <input type="date" @bind="importStart" />
+                        </label>
+                        <label class="field">Post at (your time)
+                            <input type="time" @bind="importTime" />
+                        </label>
+                        <label class="field">Status
+                            <select @bind="importSchedule">
+                                <option value="true">Schedule right away</option>
+                                <option value="false">Import as drafts</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="row-end"><button class="btn" @onclick="Import">Import posts</button></div>
+                }
+            </div>
+        }
+
+        <div class="stages">
+            @foreach (var (key, label) in Filters)
+            {
+                <button class="stage @(filter == key ? "on" : "") @(key == "due" ? "due" : "")" @onclick="() => filter = key"><span>@label</span><b>@Count(key)</b></button>
+            }
+        </div>
+
+        @if (posts.Count == 0)
+        {
+            <div class="empty">
+                <div class="empty-icon">🗓️</div>
+                <h2>Nothing scheduled yet</h2>
+                <p>Generate a content calendar, then import it here with one click.</p>
+                <a class="btn" href="/app/p/@Id/m/content">Open Content Reactor</a>
+            </div>
+        }
+
+        @foreach (var day in Visible.GroupBy(p => Local(p.ScheduledAt).Date).OrderBy(g => g.Key))
+        {
+            <h3 class="day-head">@day.Key.ToString("dddd, MMM d") @if (day.Key == LocalNow.Date) { <span class="tag live">Today</span> }</h3>
+            <div class="posts">
+                @foreach (var p in day.OrderBy(p => p.ScheduledAt))
+                {
+                    var auto = SocialSvc.IsAutoChannel(p.Channel);
+                    var max = SocialSvc.ByChannel(p.Channel)?.MaxLength;
+                    var due = IsManualDue(p);
+                    <div class="post @(due ? "is-due" : "") status-@p.Status.ToLowerInvariant()" @key="p.Id">
+                        <div class="post-head">
+                            <span class="chan chan-@p.Channel.ToLowerInvariant()">@p.Channel</span>
+                            <input type="datetime-local" value="@Local(p.ScheduledAt).ToString("yyyy-MM-ddTHH:mm")" @onchange="e => Reschedule(p, e.Value?.ToString())" disabled="@(p.Status == PostStatus.Posted)" />
+                            <span class="pstatus">@StatusText(p, auto, due)</span>
+                            @if (max != null) { <span class="count @(p.Text.Length > max ? "over" : "")">@p.Text.Length/@max</span> }
+                        </div>
+                        <textarea rows="@Math.Clamp(p.Text.Length / 70 + 2, 3, 12)" value="@p.Text" disabled="@(p.Status == PostStatus.Posted)" @onchange="e => Save(p, x => x.Text = e.Value?.ToString() ?? string.Empty)"></textarea>
+                        @if (p.Visual.Length > 0) { <div class="visual">🖼 @p.Visual</div> }
+                        @if (p.Status == PostStatus.Failed && p.Error.Length > 0) { <div class="notice bad small">@p.Error</div> }
+                        <div class="post-actions">
+                            @if (p.Status == PostStatus.Posted)
+                            {
+                                @if (p.ExternalUrl.Length > 0) { <a class="chip" href="@p.ExternalUrl" target="_blank" rel="noopener">View post ↗</a> }
+                                <span class="app-muted small">Posted @p.PostedAt?.ToLocalTime().ToString("MMM d, HH:mm")</span>
+                            }
+                            else
+                            {
+                                @if (p.Status == PostStatus.Scheduled)
+                                {
+                                    <button class="chip" @onclick="() => Save(p, x => x.Status = PostStatus.Draft)">Unschedule</button>
+                                }
+                                else
+                                {
+                                    <button class="chip" @onclick="() => Save(p, x => { x.Status = PostStatus.Scheduled; x.Error = string.Empty; })">Schedule</button>
+                                }
+                                @if (auto)
+                                {
+                                    <button class="chip" disabled="@(busyId != null)" @onclick="() => PostNow(p)">@(busyId == p.Id ? "Posting…" : "Post now")</button>
+                                }
+                                <button class="chip" @onclick="() => Copy(p)">@(copiedId == p.Id ? "Copied ✓" : "Copy")</button>
+                                @if (ComposerUrl(p) is { } url)
+                                {
+                                    <a class="chip" href="@url" target="_blank" rel="noopener">Open composer ↗</a>
+                                }
+                                <button class="chip" @onclick="() => MarkPosted(p)">Mark as posted</button>
+                                <button class="chip danger" @onclick="() => Delete(p)">Delete</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "import")] public int? ImportParam { get; set; }
+    [SupplyParameterFromQuery(Name = "connected")] public string? Connected { get; set; }
+    [SupplyParameterFromQuery(Name = "social_error")] public string? SocialError { get; set; }
+
+    static readonly (string Key, string Label)[] Filters =
+    {
+        ("upcoming", "Upcoming"), ("due", "Needs you"), ("draft", "Drafts"), ("posted", "Posted"), ("failed", "Failed"), ("all", "All"),
+    };
+
+    List<ScheduledPost> posts = new();
+    List<SocialAccount> accounts = new();
+    List<ModuleRun> contentRuns = new();
+    string filter = "upcoming";
+    string? message;
+    bool messageGood;
+    bool importing;
+    int importRunId;
+    DateTime importStart = DateTime.Today.AddDays(1);
+    TimeOnly importTime = new(9, 0);
+    bool importSchedule = true;
+    int? busyId, copiedId;
+    int tzOffsetMinutes; // JS getTimezoneOffset(): UTC - local, in minutes
+
+    DateTime Local(DateTime utc) => DateTime.SpecifyKind(utc.AddMinutes(-tzOffsetMinutes), DateTimeKind.Unspecified);
+    DateTime ToUtc(DateTime local) => DateTime.SpecifyKind(local.AddMinutes(tzOffsetMinutes), DateTimeKind.Utc);
+    DateTime LocalNow => Local(DateTime.UtcNow);
+
+    protected override async Task OnProjectLoadedAsync()
+    {
+        await Load();
+        if (ImportParam is { } id && contentRuns.Any(r => r.Id == id)) { importing = true; importRunId = id; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var off = await JS.InvokeAsync<int>("fm.tzOffset");
+        if (off != tzOffsetMinutes)
+        {
+            tzOffsetMinutes = off;
+            importStart = LocalNow.Date.AddDays(1);
+            StateHasChanged();
+        }
+    }
+
+    async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        posts = await db.Posts.Where(p => p.ProjectId == Id).OrderBy(p => p.ScheduledAt).ToListAsync();
+        accounts = await db.SocialAccounts.Where(a => a.UserId == UserId).ToListAsync();
+        contentRuns = await db.ModuleRuns.Where(r => r.ProjectId == Id && r.ModuleKey == "content" && r.Output != "")
+            .OrderByDescending(r => r.CreatedAt).Take(10).ToListAsync();
+        if (importRunId == 0 && contentRuns.Count > 0) importRunId = contentRuns[0].Id;
+    }
+
+    bool IsManualDue(ScheduledPost p) => p.Status == PostStatus.Scheduled && !SocialSvc.IsAutoChannel(p.Channel) && p.ScheduledAt <= DateTime.UtcNow.AddHours(1);
+
+    IEnumerable<ScheduledPost> Visible => filter switch
+    {
+        "upcoming" => posts.Where(p => p.Status == PostStatus.Scheduled),
+        "due" => posts.Where(p => IsManualDue(p) || p.Status == PostStatus.Failed),
+        "draft" => posts.Where(p => p.Status == PostStatus.Draft),
+        "posted" => posts.Where(p => p.Status == PostStatus.Posted),
+        "failed" => posts.Where(p => p.Status == PostStatus.Failed),
+        _ => posts,
+    };
+
+    int Count(string key) { var f = filter; filter = key; var n = Visible.Count(); filter = f; return n; }
+
+    string StatusText(ScheduledPost p, bool auto, bool due) => p.Status switch
+    {
+        PostStatus.Scheduled when due => "⏰ Due: post it now",
+        PostStatus.Scheduled when auto && !accounts.Any(a => a.Provider == SocialSvc.ByChannel(p.Channel)!.Key) => "Scheduled · connect account",
+        PostStatus.Scheduled => auto ? "Scheduled · auto" : "Scheduled · reminder",
+        PostStatus.Posted => "✓ Posted",
+        PostStatus.Failed => "✕ Failed",
+        _ => "Draft",
+    };
+
+    static string Summary(ModuleRun r)
+    {
+        var n = ContentParser.Parse(r.Output).Count;
+        return n == 0 ? "no importable posts" : $"{n} posts";
+    }
+
+    async Task Import()
+    {
+        message = null;
+        var run = contentRuns.FirstOrDefault(r => r.Id == importRunId);
+        if (run == null) return;
+        var parsed = ContentParser.Parse(run.Output);
+        if (parsed.Count == 0)
+        {
+            Say("Couldn't find posts in that calendar. Generate a new one with the Content Reactor. It now writes in an importable format.", false);
+            return;
+        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var existing = await db.Posts.Where(p => p.ProjectId == Id && p.SourceRunId == run.Id).Select(p => new { p.DayNumber, p.Channel }).ToListAsync();
+        var added = 0;
+        foreach (var p in parsed)
+        {
+            if (existing.Any(e => e.DayNumber == p.Day && e.Channel == p.Channel)) continue;
+            var local = importStart.Date.AddDays(p.Day - 1).Add(importTime.ToTimeSpan());
+            db.Posts.Add(new ScheduledPost
+            {
+                ProjectId = Id, Channel = p.Channel, Text = p.Text, Visual = p.Visual, DayNumber = p.Day,
+                ScheduledAt = ToUtc(local), SourceRunId = run.Id,
+                Status = importSchedule ? PostStatus.Scheduled : PostStatus.Draft,
+            });
+            added++;
+        }
+        await db.SaveChangesAsync();
+        importing = false;
+        filter = importSchedule ? "upcoming" : "draft";
+        await Load();
+        Say(added == 0 ? "Those posts were already imported." : $"Imported {added} posts.", added > 0);
+    }
+
+    void Say(string text, bool good) { message = text; messageGood = good; }
+
+    async Task Save(ScheduledPost p, Action<ScheduledPost> change)
+    {
+        change(p);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Posts.FirstOrDefaultAsync(x => x.Id == p.Id && x.ProjectId == Id);
+        if (row == null) return;
+        change(row);
+        await db.SaveChangesAsync();
+    }
+
+    Task Reschedule(ScheduledPost p, string? value)
+        => DateTime.TryParse(value, out var local) ? Save(p, x => x.ScheduledAt = ToUtc(local)) : Task.CompletedTask;
+
+    async Task PostNow(ScheduledPost p)
+    {
+        busyId = p.Id; message = null;
+        var r = await SocialSvc.PublishAsync(p.Id);
+        busyId = null;
+        await Load();
+        Say(r.Ok ? $"Posted to {p.Channel}." : r.Error, r.Ok);
+    }
+
+    async Task MarkPosted(ScheduledPost p)
+        => await Save(p, x => { x.Status = PostStatus.Posted; x.PostedAt = DateTime.UtcNow; x.Error = string.Empty; });
+
+    async Task Delete(ScheduledPost p)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Posts.FirstOrDefaultAsync(x => x.Id == p.Id && x.ProjectId == Id);
+        if (row != null) { db.Posts.Remove(row); await db.SaveChangesAsync(); }
+        posts.Remove(p);
+    }
+
+    async Task Copy(ScheduledPost p)
+    {
+        await JS.InvokeVoidAsync("fm.copy", p.Text);
+        copiedId = p.Id;
+    }
+
+    static string? ComposerUrl(ScheduledPost p) => p.Channel switch
+    {
+        "X" => "https://x.com/intent/post?text=" + Uri.EscapeDataString(p.Text),
+        "LinkedIn" => "https://www.linkedin.com/feed/?shareActive=true&text=" + Uri.EscapeDataString(p.Text),
+        "Facebook" => "https://www.facebook.com/",
+        "Instagram" => "https://www.instagram.com/",
+        "TikTok" => "https://www.tiktok.com/upload",
+        "Threads" => "https://www.threads.net/intent/post?text=" + Uri.EscapeDataString(p.Text),
+        _ => null,
+    };
+
+    void Connect(string provider) => Nav.NavigateTo($"/connect/{provider}?returnUrl={Uri.EscapeDataString($"/app/p/{Id}/social")}", forceLoad: true);
+
+    async Task Disconnect(string provider)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var acc = await db.SocialAccounts.FirstOrDefaultAsync(a => a.UserId == UserId && a.Provider == provider);
+        if (acc != null) { db.SocialAccounts.Remove(acc); await db.SaveChangesAsync(); }
+        await Load();
+    }
+
+    static string ErrorText(string code) => code switch
+    {
+        "denied" => "Connection cancelled.",
+        "expired" => "The connection attempt expired. Please try again.",
+        _ => "Couldn't connect the account. Check the app's API keys and redirect URL, then try again.",
+    };
+}

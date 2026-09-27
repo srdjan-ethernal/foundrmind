@@ -28,8 +28,20 @@ dotnet user-secrets set ANTHROPIC_API_KEY "<your key>"
 | `ConnectionStrings__Default` | `Host=...` → PostgreSQL, otherwise SQLite file (`Data Source=foundrmind.db`) |
 | `DATA_PROTECTION_PATH` | Persistent folder for auth-cookie keys (set in Docker image to `/data/keys`) |
 | `DISABLE_HTTPS_REDIRECT` | `1` when TLS is terminated by a proxy (Caddy, Azure) |
+| `PUBLIC_BASE_URL` | Public origin used for OAuth redirect URLs, e.g. `https://foundrmind.com` (defaults to the request host) |
+| `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | Enables LinkedIn auto-posting (optional `LINKEDIN_API_VERSION`, default `202606`) |
+| `X_CLIENT_ID` / `X_CLIENT_SECRET` | Enables X auto-posting |
 
-Schema is created on first start (`EnsureCreated`). Switch to EF migrations before the first schema change in production.
+**Database schema:** PostgreSQL uses EF Core migrations (`Data/Migrations`), applied automatically on startup. Local SQLite uses `EnsureCreated`; delete `foundrmind.db` after model changes. Add a migration with `dotnet tool restore && dotnet ef migrations add <Name> -o Data/Migrations`.
+
+## Social auto-posting
+
+The Social calendar (`/app/p/{id}/social`) imports Content Reactor calendars, and a background job publishes due posts every minute. Without API keys every channel works in reminder mode (copy + open composer).
+
+- **LinkedIn:** create an app at developer.linkedin.com, add the products *Share on LinkedIn* and *Sign In with LinkedIn using OpenID Connect*, and register the redirect URL `{PUBLIC_BASE_URL}/connect/linkedin/callback`. Tokens last 60 days; users reconnect when prompted.
+- **X:** create an app at developer.x.com, enable OAuth 2.0 (type *Web App*, read and write), and register the callback `{PUBLIC_BASE_URL}/connect/x/callback`. Posting needs an API tier that allows creating posts.
+- Instagram, TikTok and Facebook require business accounts and platform app review, so they run in reminder mode for now.
+- Tokens are encrypted at rest with ASP.NET Data Protection, so keep `DATA_PROTECTION_PATH` persistent.
 
 ## Deploy: Hetzner (VPS + Docker)
 

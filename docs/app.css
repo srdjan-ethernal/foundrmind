@@ -448,3 +448,32 @@ h1:focus { outline: none; }
 .tool-body { flex: 1; display: grid; gap: 2px; }
 .tool-body span { font-size: .84rem; color: var(--ink-2); }
 .tool-check { color: var(--good); font-weight: 800; }
+
+/* Social calendar */
+.accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.account { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; box-shadow: var(--shadow); }
+.account .btn, .account .chip { justify-self: start; }
+.account-name { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.manual-note { background: #fafbff; box-shadow: none; }
+.day-head { margin: 22px 0 10px; font-size: 1rem; display: flex; gap: 8px; align-items: center; }
+.posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
+.post { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; box-shadow: var(--shadow); }
+.post.is-due { border-left: 4px solid var(--pink); }
+.post.status-posted { opacity: .75; }
+.post.status-failed { border-color: #f5c2cb; }
+.post-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.post-head input { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); font-size: .85rem; }
+.post textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); resize: vertical; font-size: .92rem; line-height: 1.5; }
+.post textarea:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(124, 92, 255, .15); }
+.post-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pstatus { font-size: .8rem; font-weight: 700; color: var(--ink-2); }
+.count { margin-left: auto; font-size: .78rem; color: var(--ink-3); font-family: "JetBrains Mono", monospace; }
+.count.over { color: var(--bad); font-weight: 700; }
+.visual { font-size: .84rem; color: var(--ink-2); background: #f7f8fc; padding: 8px 10px; border-radius: 8px; }
+.chan { font-size: .75rem; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: #eef0fb; color: var(--ink); }
+.chan-linkedin { background: #e5f0fb; color: #0a66c2; }
+.chan-x { background: #111; color: #fff; }
+.chan-instagram { background: #fde8f3; color: #c1358a; }
+.chan-tiktok { background: #e8fbfa; color: #0f766e; }
+.chan-facebook { background: #e8effd; color: #1d4ed8; }
+@media (max-width: 520px) { .posts { grid-template-columns: 1fr; } }

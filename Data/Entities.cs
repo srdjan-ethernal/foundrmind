@@ -41,6 +41,7 @@ public class Project
     public List<ModuleRun> Runs { get; set; } = new();
     public List<Lead> Leads { get; set; } = new();
     public List<PublishedPage> Pages { get; set; } = new();
+    public List<ScheduledPost> Posts { get; set; } = new();
 }
 
 public class ModuleRun
@@ -93,4 +94,46 @@ public class PublishedPage
     public int Views { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>A user's connected social account. Tokens are encrypted with ASP.NET Data Protection.</summary>
+public class SocialAccount
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public User? User { get; set; }
+    public string Provider { get; set; } = ""; // linkedin | x
+    public string ExternalId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string AccessTokenEnc { get; set; } = "";
+    public string RefreshTokenEnc { get; set; } = "";
+    public DateTime? ExpiresAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public static class PostStatus
+{
+    public const string Draft = "Draft";
+    public const string Scheduled = "Scheduled";
+    public const string Posted = "Posted";
+    public const string Failed = "Failed";
+}
+
+public class ScheduledPost
+{
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+    public Project? Project { get; set; }
+    public string Channel { get; set; } = "";
+    public string Text { get; set; } = "";
+    public string Visual { get; set; } = "";
+    public DateTime ScheduledAt { get; set; }
+    public string Status { get; set; } = PostStatus.Draft;
+    public string ExternalUrl { get; set; } = "";
+    public string Error { get; set; } = "";
+    public int Attempts { get; set; }
+    public int? SourceRunId { get; set; }
+    public int DayNumber { get; set; }
+    public DateTime? PostedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

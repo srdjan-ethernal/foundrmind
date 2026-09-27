@@ -85,8 +85,16 @@ public static class Modules
                 Create a {Or(i, "days", "14")}-day content calendar for these channels: {Or(i, "channels", "LinkedIn, X")}.
                 Themes / events to include: {Or(i, "themes", "none — build a natural awareness → trust → offer arc")}
 
-                First a short strategy (content pillars, posting rhythm, the one metric to watch).
-                Then for each day a "### Day N — <pillar>" heading with, per channel, the complete ready-to-post copy (not an outline), hashtags where they fit that channel, and a one-line visual idea.
+                First a short "## Strategy" section (content pillars, posting rhythm, the one metric to watch).
+                Then a "## Calendar" section using EXACTLY this structure, because the posts are imported into a scheduler automatically:
+
+                ### Day 1 — <pillar>
+                #### <Channel name, exactly as listed above>
+                <the complete ready-to-post copy, not an outline; hashtags only where they fit that channel>
+                Visual: <one-line visual idea>
+
+                Repeat "#### <Channel>" blocks for every channel on every day, then continue with "### Day 2 — …".
+                Posts for X must be 280 characters or fewer including hashtags. Don't wrap post copy in quotes or code blocks.
                 Mix formats: stories, contrarian takes, how-tos, behind the scenes, soft offers (max 1 in 5 posts sells).
                 """),
 

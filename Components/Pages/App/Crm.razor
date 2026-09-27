@@ -1,0 +1,252 @@
+@page "/app/p/{Id:int}/crm"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inherits ProjectBase
+@inject Ai AiSvc
+@inject Usage UsageSvc
+@inject IJSRuntime JS
+
+<PageTitle>CRM · @(Project?.Name) · Foundrmind</PageTitle>
+
+@if (NotFound)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page wide">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app/p/@Id">@Project.Name</a> / CRM</div>
+                <h1>🤝 CRM</h1>
+                <p class="app-muted">Sign-ups from your published pages land here automatically. Nothing is sent without you.</p>
+            </div>
+            <div class="row-gap">
+                <button class="btn-ghost" @onclick="ExportCsv" disabled="@(leads.Count == 0)">Export CSV</button>
+                <button class="btn" @onclick="() => adding = !adding">@(adding ? "Close" : "＋ Add lead")</button>
+            </div>
+        </div>
+
+        <div class="stages">
+            <button class="stage @(filter == null ? "on" : "")" @onclick="() => filter = null"><span>All</span><b>@leads.Count</b></button>
+            <button class="stage due @(filter == "due" ? "on" : "")" @onclick="@(() => filter = "due")"><span>Due today</span><b>@leads.Count(IsDue)</b></button>
+            @foreach (var s in LeadStages.All)
+            {
+                <button class="stage @(filter == s ? "on" : "")" @onclick="() => filter = s"><span>@s</span><b>@leads.Count(l => l.Stage == s)</b></button>
+            }
+        </div>
+        <div class="app-muted small pipeline-value">Open pipeline value: <b>@leads.Where(l => l.Stage is not ("Won" or "Lost")).Sum(l => l.Value).ToString("C0")</b> · Won: <b>@leads.Where(l => l.Stage == "Won").Sum(l => l.Value).ToString("C0")</b></div>
+
+        @if (adding)
+        {
+            <div class="panel">
+                <div class="grid4">
+                    <label class="field">Name<input @bind="draft.Name" maxlength="120" /></label>
+                    <label class="field">Email<input type="email" @bind="draft.Email" maxlength="200" /></label>
+                    <label class="field">Company<input @bind="draft.Company" maxlength="120" /></label>
+                    <label class="field">Deal value ($)<input type="number" min="0" @bind="draft.Value" /></label>
+                </div>
+                <label class="field">Notes<textarea rows="2" @bind="draft.Notes" maxlength="2000" placeholder="Where you met, what they need…"></textarea></label>
+                <div class="row-end"><button class="btn" disabled="@string.IsNullOrWhiteSpace(draft.Name + draft.Email)" @onclick="AddLead">Add lead</button></div>
+            </div>
+        }
+
+        @if (error != null) { <div class="notice bad">@error</div> }
+
+        @if (leads.Count == 0)
+        {
+            <div class="empty">
+                <div class="empty-icon">📭</div>
+                <h2>No leads yet</h2>
+                <p>Publish a page with the Funnel Builder: every sign-up appears here with a follow-up reminder.</p>
+                <a class="btn" href="/app/p/@Id/m/funnel">Build a landing page</a>
+            </div>
+        }
+
+        <div class="leads">
+            @foreach (var l in Visible)
+            {
+                <div class="lead @(IsDue(l) ? "is-due" : "")" @key="l.Id">
+                    <div class="lead-main">
+                        <div class="lead-id">
+                            <b>@(l.Name == "" ? l.Email : l.Name)</b>
+                            <span class="app-muted small">@l.Email @(l.Company != "" ? " · " + l.Company : "") · @l.Source · @l.CreatedAt.ToLocalTime().ToString("MMM d")</span>
+                        </div>
+                        <select value="@l.Stage" @onchange="e => Update(l, x => x.Stage = e.Value!.ToString()!)">
+                            @foreach (var s in LeadStages.All) { <option>@s</option> }
+                        </select>
+                        <label class="inline">$<input type="number" min="0" value="@l.Value" @onchange="e => Update(l, x => x.Value = decimal.TryParse(e.Value?.ToString(), out var v) ? v : 0)" /></label>
+                        <label class="inline">Follow up
+                            <input type="date" value="@(l.NextFollowUp?.ToString("yyyy-MM-dd"))" @onchange="e => Update(l, x => x.NextFollowUp = DateTime.TryParse(e.Value?.ToString(), out var d) ? DateTime.SpecifyKind(d, DateTimeKind.Utc) : null)" />
+                        </label>
+                        <button class="chip" @onclick="() => Toggle(l.Id)">@(open.Contains(l.Id) ? "▲" : "▼ Details")</button>
+                    </div>
+                    @if (open.Contains(l.Id))
+                    {
+                        <div class="lead-body">
+                            <label class="field">Notes<textarea rows="3" value="@l.Notes" @onchange="e => Update(l, x => x.Notes = e.Value?.ToString() ?? string.Empty)"></textarea></label>
+                            <div class="lead-ai">
+                                <div class="row-between">
+                                    <b>✨ Follow-up draft</b>
+                                    <span class="row-gap">
+                                        <button class="chip" disabled="@(draftingId != null)" @onclick="() => DraftFollowUp(l)">@(draftingId == l.Id ? "Writing…" : l.AiDraft == "" ? "Draft with AI" : "Redraft")</button>
+                                        @if (l.AiDraft != "" && draftingId != l.Id)
+                                        {
+                                            <button class="chip" @onclick="() => JS.InvokeVoidAsync(fmCopy, l.AiDraft)">Copy</button>
+                                            <a class="chip" href="@MailTo(l)">Open in email</a>
+                                        }
+                                    </span>
+                                </div>
+                                @if (draftingId == l.Id || l.AiDraft != "")
+                                {
+                                    <pre class="draft">@(draftingId == l.Id ? streaming : l.AiDraft)</pre>
+                                }
+                                @if (manualFor == l.Id)
+                                {
+                                    <div class="manual">
+                                        <p class="small">AI key not configured: copy this prompt into claude.ai and paste the reply.</p>
+                                        <textarea readonly rows="5">@manualPrompt</textarea>
+                                        <textarea rows="5" @bind="manualAnswer" placeholder="Paste reply"></textarea>
+                                        <button class="btn btn-sm" @onclick="() => SaveManual(l)">Save</button>
+                                    </div>
+                                }
+                            </div>
+                            <div class="row-end"><button class="btn-danger btn-sm" @onclick="() => DeleteLead(l)">Delete lead</button></div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    const string fmCopy = "fm.copy";
+    List<Lead> leads = new();
+    string? filter, error, manualPrompt, manualAnswer;
+    bool adding;
+    Lead draft = new();
+    HashSet<int> open = new();
+    int? draftingId, manualFor;
+    string streaming = "";
+
+    IEnumerable<Lead> Visible => filter switch
+    {
+        null => leads,
+        "due" => leads.Where(IsDue),
+        _ => leads.Where(l => l.Stage == filter),
+    };
+
+    static bool IsDue(Lead l) => l.NextFollowUp != null && l.NextFollowUp.Value.Date <= DateTime.UtcNow.Date && l.Stage is not ("Won" or "Lost");
+
+    protected override async Task OnProjectLoadedAsync() => await Load();
+
+    async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        leads = await db.Leads.Where(l => l.ProjectId == Id).OrderByDescending(l => l.CreatedAt).ToListAsync();
+    }
+
+    void Toggle(int id) { if (!open.Remove(id)) open.Add(id); }
+
+    async Task AddLead()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        draft.ProjectId = Id;
+        draft.Email = draft.Email.Trim();
+        draft.NextFollowUp = DateTime.UtcNow.Date.AddDays(1);
+        db.Leads.Add(draft);
+        await db.SaveChangesAsync();
+        draft = new();
+        adding = false;
+        await Load();
+    }
+
+    async Task Update(Lead l, Action<Lead> change)
+    {
+        change(l);
+        l.UpdatedAt = DateTime.UtcNow;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Leads.FirstOrDefaultAsync(x => x.Id == l.Id && x.ProjectId == Id);
+        if (row == null) return;
+        change(row);
+        row.UpdatedAt = l.UpdatedAt;
+        await db.SaveChangesAsync();
+    }
+
+    async Task DeleteLead(Lead l)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Leads.FirstOrDefaultAsync(x => x.Id == l.Id && x.ProjectId == Id);
+        if (row != null) { db.Leads.Remove(row); await db.SaveChangesAsync(); }
+        leads.Remove(l);
+    }
+
+    async Task DraftFollowUp(Lead l)
+    {
+        error = null;
+        var (used, lim) = await UsageSvc.GetAsync(UserId);
+        if (used >= lim) { error = $"You've used all {lim} AI runs this month."; return; }
+
+        var system = Modules.System(Project!);
+        var task = Modules.FollowUpTask(l);
+        if (!AiSvc.IsConfigured)
+        {
+            manualFor = l.Id; manualPrompt = system + "\n\n---\n\n" + task; manualAnswer = "";
+            return;
+        }
+
+        draftingId = l.Id; streaming = "";
+        var sb = new System.Text.StringBuilder();
+        var result = await AiSvc.StreamAsync(new AiRequest(system, task, MaxTokens: 2000, Effort: "medium"), async t =>
+        {
+            sb.Append(t);
+            streaming = sb.ToString();
+            await InvokeAsync(StateHasChanged);
+        });
+        draftingId = null;
+        if (result.Error != null) error = result.Error;
+        if (result.Text.Length > 0)
+        {
+            await Update(l, x => x.AiDraft = result.Text.Trim());
+            await LogRun(result.Status, result.InputTokens, result.OutputTokens, result.Text);
+        }
+    }
+
+    async Task SaveManual(Lead l)
+    {
+        if (string.IsNullOrWhiteSpace(manualAnswer)) return;
+        await Update(l, x => x.AiDraft = manualAnswer!.Trim());
+        manualFor = null;
+    }
+
+    async Task LogRun(string status, int inTok, int outTok, string text)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.ModuleRuns.Add(new ModuleRun { ProjectId = Id, ModuleKey = "crm-followup", Output = text, Status = status, InputTokens = inTok, OutputTokens = outTok });
+        await db.SaveChangesAsync();
+    }
+
+    static string MailTo(Lead l)
+    {
+        var text = l.AiDraft;
+        var subject = "";
+        if (text.StartsWith("Subject:", StringComparison.OrdinalIgnoreCase))
+        {
+            var nl = text.IndexOf('\n');
+            subject = (nl < 0 ? text : text[..nl])["Subject:".Length..].Trim();
+            text = nl < 0 ? "" : text[(nl + 1)..].Trim();
+        }
+        return $"mailto:{Uri.EscapeDataString(l.Email)}?subject={Uri.EscapeDataString(subject)}&body={Uri.EscapeDataString(text)}";
+    }
+
+    async Task ExportCsv()
+    {
+        static string C(string? s) => "\"" + (s ?? "").Replace("\"", "\"\"") + "\"";
+        var lines = new List<string> { "Name,Email,Company,Source,Stage,Value,NextFollowUp,Notes,Created" };
+        lines.AddRange(leads.Select(l => string.Join(",", C(l.Name), C(l.Email), C(l.Company), C(l.Source), C(l.Stage),
+            l.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), C(l.NextFollowUp?.ToString("yyyy-MM-dd")), C(l.Notes), C(l.CreatedAt.ToString("yyyy-MM-dd")))));
+        await JS.InvokeVoidAsync("fm.download", $"{Slug.From(Project!.Name)}-leads.csv", string.Join("\n", lines), "text/csv");
+    }
+}

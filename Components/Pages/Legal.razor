@@ -1,0 +1,26 @@
+@page "/terms"
+@page "/privacy"
+@layout LandingLayout
+@inject NavigationManager Nav
+
+<PageTitle>@Title · Foundrmind</PageTitle>
+<div class="lp">
+    <header class="lp-nav"><a class="lp-brand" href="/"><img src="favicon.svg" alt="" width="28" height="28" /> Foundrmind</a></header>
+    <section class="lp-section lp-legal">
+        <h1>@Title</h1>
+        <p class="lp-note">Draft: this page will be replaced with the final legal text before public launch.</p>
+        @if (IsPrivacy)
+        {
+            <p>We store the account details you give us (name, email, a salted hash of your password) and the business information and outputs you create. We send the text of your requests to our AI provider (Anthropic) to generate results. We don't sell your data. Leads captured on your published pages belong to you. Contact <a href="mailto:hello@foundrmind.com">hello@foundrmind.com</a> to export or delete your data.</p>
+        }
+        else
+        {
+            <p>Foundrmind provides AI-generated drafts. You're responsible for reviewing what you publish and send. You own the content you create. Don't use the service for unlawful, deceptive or harmful purposes. Paid plans are billed monthly and can be cancelled anytime.</p>
+        }
+    </section>
+</div>
+
+@code {
+    bool IsPrivacy => Nav.Uri.Contains("/privacy");
+    string Title => IsPrivacy ? "Privacy Policy" : "Terms of Service";
+}

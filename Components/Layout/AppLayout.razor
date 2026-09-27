@@ -1,0 +1,81 @@
+@inherits LayoutComponentBase
+@inject IDbContextFactory<AppDb> DbFactory
+@inject NavigationManager Nav
+@inject Usage UsageSvc
+
+<div class="app">
+    <aside class="app-side">
+        <a class="app-brand" href="/app"><img src="favicon.svg" alt="" width="26" height="26" /> Foundrmind</a>
+
+        <div class="app-side-label">Businesses</div>
+        <nav class="app-projects">
+            @foreach (var p in projects)
+            {
+                <a href="/app/p/@p.Id" class="@(p.Id == currentId ? "active" : "")"><span class="app-avatar">@Initial(p.Name)</span>@p.Name</a>
+            }
+            <a href="/app/new" class="app-new">＋ New business</a>
+        </nav>
+
+        @if (current != null)
+        {
+            <div class="app-side-label">@current.Name</div>
+            <nav class="app-modules">
+                <NavLink href="@($"/app/p/{current.Id}")" Match="NavLinkMatch.All">🏠 Launch path</NavLink>
+                @foreach (var m in Modules.All)
+                {
+                    <NavLink href="@($"/app/p/{current.Id}/m/{m.Key}")">@m.Icon @m.Name</NavLink>
+                }
+                <NavLink href="@($"/app/p/{current.Id}/crm")">🤝 CRM</NavLink>
+                <NavLink href="@($"/app/p/{current.Id}/pages")">🌐 Published pages</NavLink>
+            </nav>
+        }
+
+        <div class="app-side-foot">
+            <div class="app-usage">
+                <div class="app-usage-row"><span>AI runs this month</span><b>@used / @limit</b></div>
+                <div class="app-bar"><i style="width:@(Math.Min(100, limit == 0 ? 0 : used * 100 / limit))%"></i></div>
+            </div>
+            <div class="app-user">
+                <span>@userName</span>
+                <form method="post" action="/logout"><AntiforgeryToken /><button type="submit">Log out</button></form>
+            </div>
+        </div>
+    </aside>
+    <main class="app-main">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong.
+    <a href="" class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+    List<Project> projects = new();
+    Project? current;
+    int? currentId;
+    int used, limit;
+    string userName = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthState == null) return;
+        var user = (await AuthState).User;
+        var uid = user.UserId();
+        if (uid == null) return;
+        userName = user.Identity?.Name ?? "";
+
+        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Split('/');
+        currentId = path.Length >= 3 && path[0] == "app" && path[1] == "p" && int.TryParse(path[2], out var id) ? id : null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        projects = await db.Projects.Where(p => p.UserId == uid).OrderByDescending(p => p.CreatedAt).ToListAsync();
+        current = projects.FirstOrDefault(p => p.Id == currentId);
+        (used, limit) = await UsageSvc.GetAsync(uid.Value);
+    }
+
+    static string Initial(string s) => string.IsNullOrWhiteSpace(s) ? "?" : s.Trim()[..1].ToUpperInvariant();
+}

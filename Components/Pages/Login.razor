@@ -1,0 +1,51 @@
+@page "/login"
+@layout LandingLayout
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject IDbContextFactory<AppDb> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Log in · Foundrmind</PageTitle>
+<div class="lp lp-auth">
+    <a class="lp-brand" href="/"><img src="favicon.svg" alt="" width="32" height="32" /> Foundrmind</a>
+    <div class="lp-auth-card">
+        <h1>Welcome back</h1>
+        <p class="lp-muted">Log in to your workspace.</p>
+        @if (error != null) { <div class="lp-alert">@error</div> }
+        <EditForm Model="Input" FormName="login" OnValidSubmit="Submit">
+            <DataAnnotationsValidator />
+            <label>Email<InputText @bind-Value="Input.Email" type="email" autocomplete="email" /></label>
+            <label>Password<InputText @bind-Value="Input.Password" type="password" autocomplete="current-password" /></label>
+            <ValidationSummary />
+            <button class="lp-btn" type="submit">Log in</button>
+        </EditForm>
+        <p class="lp-muted lp-auth-alt">New here? <a href="/signup">Create a free account</a></p>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] LoginModel Input { get; set; } = new();
+    string? error;
+
+    async Task Submit()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var email = Input.Email.Trim().ToLowerInvariant();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user == null || !Passwords.Verify(Input.Password, user.PasswordHash))
+        {
+            error = "Wrong email or password.";
+            return;
+        }
+        await AuthHelper.SignIn(HttpContext, user);
+        Nav.NavigateTo("/app", forceLoad: true);
+    }
+
+    public class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.EmailAddress] public string Email { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Password { get; set; } = "";
+    }
+}

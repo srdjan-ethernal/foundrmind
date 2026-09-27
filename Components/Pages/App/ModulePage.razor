@@ -1,0 +1,380 @@
+@page "/app/p/{Id:int}/m/{Key}"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inherits ProjectBase
+@implements IDisposable
+@using System.Text.Json
+@inject Ai AiSvc
+@inject Usage UsageSvc
+@inject IJSRuntime JS
+
+<PageTitle>@(Def?.Name ?? "Module") · @(Project?.Name) · Foundrmind</PageTitle>
+
+@if (NotFound || Def == null)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page wide">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app/p/@Id">@Project.Name</a> / @Def.Name</div>
+                <h1>@Def.Icon @Def.Name</h1>
+                <p class="app-muted">@Def.Tagline @(Def.WebSearch ? " Uses live web search." : "")</p>
+            </div>
+        </div>
+
+        @if (Welcome)
+        {
+            <div class="notice good">🎉 Your workspace is ready. Step one: let's see if <b>@Project.Name</b> has a market. Hit <b>Generate</b>; it takes about a minute.</div>
+        }
+
+        <div class="module">
+            <section class="panel module-form">
+                @foreach (var f in Def.Fields)
+                {
+                    <label class="field">@f.Label
+                        @if (f.Type == "textarea")
+                        {
+                            <textarea rows="3" placeholder="@f.Placeholder" value="@Val(f.Key)" @onchange="e => inputs[f.Key] = e.Value?.ToString() ?? string.Empty"></textarea>
+                        }
+                        else if (f.Type == "select")
+                        {
+                            <select value="@Val(f.Key)" @onchange="e => inputs[f.Key] = e.Value?.ToString() ?? string.Empty">
+                                @foreach (var o in f.Options!) { <option value="@o">@o</option> }
+                            </select>
+                        }
+                        else
+                        {
+                            <input placeholder="@f.Placeholder" value="@Val(f.Key)" @onchange="e => inputs[f.Key] = e.Value?.ToString() ?? string.Empty" />
+                        }
+                    </label>
+                }
+                <p class="app-muted small">Works from your business brief. <a href="/app/p/@Id">Edit brief</a></p>
+                @if (running)
+                {
+                    <button class="btn-ghost full" @onclick="Stop">■ Stop</button>
+                }
+                else
+                {
+                    <button class="btn full" disabled="@quotaOut" @onclick="() => Run(null)">@(output.Length > 0 ? "Generate new version ✨" : "Generate ✨")</button>
+                }
+                @if (quotaOut)
+                {
+                    <div class="notice">You've used all @limit AI runs this month. Pro (early access) gives you 500.</div>
+                }
+
+                @if (history.Count > 0)
+                {
+                    <div class="history">
+                        <div class="app-side-label dark">History</div>
+                        @foreach (var h in history)
+                        {
+                            <button class="@(h.Id == runId ? "on" : "")" @onclick="() => Open(h)">
+                                <span>@h.CreatedAt.ToLocalTime().ToString("MMM d, HH:mm")</span>
+                                <em>@StatusLabel(h.Status)</em>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="panel module-out">
+                <div class="out-bar">
+                    <span class="out-status">
+                        @if (running) { <span class="spinner"></span> <text>@(output.Length == 0 ? (Def.WebSearch ? "Researching the web…" : "Thinking…") : "Writing…")</text> }
+                        else if (output.Length > 0) { <text>@(Def.Output == OutputKind.Html ? "Landing page" : "Result")</text> }
+                    </span>
+                    @if (!running && output.Length > 0)
+                    {
+                        <span class="out-actions">
+                            @if (Def.Output == OutputKind.Html)
+                            {
+                                <button class="chip @(showCode ? "" : "on")" @onclick="() => showCode = false">Preview</button>
+                                <button class="chip @(showCode ? "on" : "")" @onclick="() => showCode = true">HTML</button>
+                            }
+                            <button class="chip" @onclick="Copy">@(copied ? "Copied ✓" : "Copy")</button>
+                            <button class="chip" @onclick="Download">Download</button>
+                        </span>
+                    }
+                </div>
+
+                @if (error != null)
+                {
+                    <div class="notice bad">@error</div>
+                }
+
+                @if (manualPrompt != null)
+                {
+                    <div class="manual">
+                        <p><b>AI key not configured yet</b>, so this runs in manual mode: copy the prompt into claude.ai, then paste the answer below. It will be saved like a normal run.</p>
+                        <textarea readonly rows="8">@manualPrompt</textarea>
+                        <button class="chip" @onclick="CopyPrompt">Copy prompt</button>
+                        <textarea rows="8" placeholder="Paste Claude's answer here" @bind="manualAnswer"></textarea>
+                        <button class="btn" disabled="@string.IsNullOrWhiteSpace(manualAnswer)" @onclick="SaveManual">Save result</button>
+                    </div>
+                }
+                else if (output.Length == 0 && !running)
+                {
+                    <div class="out-empty">
+                        <div class="empty-icon">@Def.Icon</div>
+                        <p>Fill in what you like on the left, or leave it blank and let your co-founder decide, then hit <b>Generate</b>.</p>
+                        <p class="app-muted small">Saves you @Def.Saves.</p>
+                    </div>
+                }
+                else if (Def.Output == OutputKind.Html)
+                {
+                    @if (running || showCode)
+                    {
+                        <pre class="code" @ref="codeEl">@output</pre>
+                    }
+                    else
+                    {
+                        <iframe class="preview" sandbox="allow-scripts" srcdoc="@CleanHtml"></iframe>
+                    }
+                }
+                else
+                {
+                    <article class="md">@Md.Render(output)</article>
+                }
+
+                @if (!running && output.Length > 0 && manualPrompt == null)
+                {
+                    @if (Def.Output == OutputKind.Html)
+                    {
+                        <div class="publish">
+                            <div>
+                                <b>🌐 Publish this page</b>
+                                <span class="app-muted small">Sign-ups from the form go straight into your CRM.</span>
+                            </div>
+                            <div class="publish-row">
+                                <span class="app-muted">/p/</span><input @bind="slug" placeholder="my-offer" maxlength="40" />
+                                <button class="btn" @onclick="Publish">@(publishedUrl == null ? "Publish" : "Update page")</button>
+                            </div>
+                            @if (publishedUrl != null)
+                            {
+                                <div class="notice good">Live at <a href="@publishedUrl" target="_blank" rel="noopener">@publishedUrl</a></div>
+                            }
+                        </div>
+                    }
+                    <div class="refine">
+                        <input placeholder="Refine it: “shorter”, “more premium”, “add a section on pricing”…" @bind="refineText" @bind:event="oninput" @onkeydown="RefineKey" />
+                        <button class="btn-ghost" disabled="@(string.IsNullOrWhiteSpace(refineText) || quotaOut)" @onclick="() => Run(refineText)">Refine</button>
+                    </div>
+                }
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Key { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "run")] public int? RunParam { get; set; }
+    [SupplyParameterFromQuery(Name = "welcome")] public int? WelcomeParam { get; set; }
+
+    ModuleDef? Def => Modules.Get(Key);
+    bool Welcome => WelcomeParam == 1 && history.Count == 0 && output.Length == 0;
+
+    Dictionary<string, string> inputs = new();
+    string output = "";
+    string? error, manualPrompt, manualAnswer, refineText, slug, publishedUrl;
+    int? runId;
+    bool running, showCode, copied, quotaOut;
+    int limit;
+    List<ModuleRun> history = new();
+    CancellationTokenSource? cts;
+    ElementReference codeEl;
+
+    string Val(string key) => inputs.TryGetValue(key, out var v) ? v : "";
+
+    protected override async Task OnProjectLoadedAsync()
+    {
+        if (Def == null) return;
+        inputs = Def.Fields.ToDictionary(f => f.Key, f => f.Default);
+        output = ""; error = null; manualPrompt = null; runId = null; publishedUrl = null;
+        slug = Slug.From(Project!.Name);
+        await LoadHistory();
+        var pick = RunParam != null ? history.FirstOrDefault(h => h.Id == RunParam) : history.FirstOrDefault();
+        if (pick != null) await Open(pick);
+        await RefreshQuota();
+    }
+
+    async Task RefreshQuota()
+    {
+        var (used, lim) = await UsageSvc.GetAsync(UserId);
+        limit = lim;
+        quotaOut = used >= lim;
+    }
+
+    async Task LoadHistory()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        history = await db.ModuleRuns.Where(r => r.ProjectId == Id && r.ModuleKey == Key)
+            .OrderByDescending(r => r.CreatedAt).Take(20).ToListAsync();
+    }
+
+    async Task Open(ModuleRun r)
+    {
+        runId = r.Id;
+        output = r.Output;
+        error = null; manualPrompt = null; showCode = false;
+        try
+        {
+            var saved = JsonSerializer.Deserialize<Dictionary<string, string>>(r.InputJson);
+            if (saved != null) foreach (var kv in saved) inputs[kv.Key] = kv.Value;
+        }
+        catch (JsonException) { }
+        publishedUrl = null;
+        if (Def!.Output == OutputKind.Html)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var page = await db.Pages.Where(p => p.ProjectId == Id).OrderByDescending(p => p.UpdatedAt).FirstOrDefaultAsync();
+            if (page != null) { slug = page.Slug; if (page.IsPublished) publishedUrl = $"/p/{page.Slug}"; }
+        }
+    }
+
+    string BuildTask(string? refine)
+    {
+        var task = Def!.Task(Project!, inputs);
+        if (refine != null && output.Length > 0)
+            task += $"\n\nHere is the current version:\n\n{output}\n\nRevise it according to this instruction, keeping everything else that works: {refine}\nReturn the complete revised version.";
+        return task;
+    }
+
+    async Task Run(string? refine)
+    {
+        if (running) return;
+        await RefreshQuota();
+        if (quotaOut) return;
+
+        var system = Modules.System(Project!);
+        var task = BuildTask(refine);
+        if (!AiSvc.IsConfigured)
+        {
+            manualPrompt = system + "\n\n---\n\n" + task;
+            manualAnswer = "";
+            return;
+        }
+
+        running = true; error = null; showCode = false; copied = false;
+        output = "";
+        cts = new CancellationTokenSource();
+        var last = DateTime.UtcNow;
+        var sb = new System.Text.StringBuilder();
+        AiResult result;
+        try
+        {
+            result = await AiSvc.StreamAsync(new AiRequest(system, task, WebSearch: Def!.WebSearch), async t =>
+            {
+                sb.Append(t);
+                if ((DateTime.UtcNow - last).TotalMilliseconds > 90)
+                {
+                    last = DateTime.UtcNow;
+                    output = sb.ToString();
+                    await InvokeAsync(StateHasChanged);
+                }
+            }, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            result = new AiResult(sb.ToString(), "error", 0, 0, "Stopped.");
+        }
+        running = false;
+        output = result.Text;
+        error = result.Error;
+        refineText = "";
+        if (output.Length > 0 || result.Status != "error")
+            await Save(result.Status, result.InputTokens, result.OutputTokens);
+        await RefreshQuota();
+    }
+
+    async Task Save(string status, int inTok, int outTok)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var run = new ModuleRun
+        {
+            ProjectId = Id, ModuleKey = Key, InputJson = JsonSerializer.Serialize(inputs),
+            Output = output, Status = status, InputTokens = inTok, OutputTokens = outTok,
+        };
+        db.ModuleRuns.Add(run);
+        await db.SaveChangesAsync();
+        runId = run.Id;
+        await LoadHistory();
+    }
+
+    async Task SaveManual()
+    {
+        output = manualAnswer!.Trim();
+        manualPrompt = null;
+        await Save("manual", 0, 0);
+    }
+
+    void Stop() => cts?.Cancel();
+
+    Task CopyPrompt() => JS.InvokeVoidAsync("fm.copy", manualPrompt).AsTask();
+
+    void RefineKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(refineText)) _ = Run(refineText);
+    }
+
+    string CleanHtml
+    {
+        get
+        {
+            var h = output.Trim();
+            if (h.StartsWith("```")) h = h[(h.IndexOf('\n') + 1)..];
+            if (h.EndsWith("```")) h = h[..h.LastIndexOf("```")];
+            return h.Trim();
+        }
+    }
+
+    async Task Copy()
+    {
+        await JS.InvokeVoidAsync("fm.copy", Def!.Output == OutputKind.Html ? CleanHtml : output);
+        copied = true;
+    }
+
+    Task Download() => Def!.Output == OutputKind.Html
+        ? JS.InvokeVoidAsync("fm.download", $"{Slug.From(Project!.Name)}-landing.html", CleanHtml, "text/html").AsTask()
+        : JS.InvokeVoidAsync("fm.download", $"{Slug.From(Project!.Name)}-{Key}.md", output, "text/markdown").AsTask();
+
+    async Task Publish()
+    {
+        var s = Slug.From(string.IsNullOrWhiteSpace(slug) ? Project!.Name : slug);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var page = await db.Pages.FirstOrDefaultAsync(p => p.Slug == s);
+        if (page != null && page.ProjectId != Id)
+        {
+            error = $"The address /p/{s} is taken. Try another one.";
+            return;
+        }
+        if (page == null)
+        {
+            page = new PublishedPage { ProjectId = Id, Slug = s };
+            db.Pages.Add(page);
+        }
+        page.Html = CleanHtml;
+        var m = System.Text.RegularExpressions.Regex.Match(page.Html, "<title>(.*?)</title>", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+        page.Title = m.Success ? System.Net.WebUtility.HtmlDecode(m.Groups[1].Value.Trim()) : Project!.Name;
+        page.IsPublished = true;
+        page.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        slug = s;
+        error = null;
+        publishedUrl = $"/p/{s}";
+    }
+
+    static string StatusLabel(string s) => s switch { "manual" => "manual", "refused" => "declined", "error" => "incomplete", _ => "" };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (running && showCode == false && Def?.Output == OutputKind.Html)
+            await JS.InvokeVoidAsync("fm.scrollBottom", codeEl);
+    }
+
+    public void Dispose() => cts?.Cancel();
+}
+

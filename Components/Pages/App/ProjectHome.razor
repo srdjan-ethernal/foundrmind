@@ -1,0 +1,157 @@
+@page "/app/p/{Id:int}"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inherits ProjectBase
+
+<PageTitle>@(Project?.Name ?? "Business") · Foundrmind</PageTitle>
+
+@if (NotFound)
+{
+    <div class="app-page"><h1>Business not found</h1><a href="/app">← Back to your businesses</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app">Businesses</a> / @Project.Name</div>
+                <h1>@Project.Name <span class="tag">@Project.Stage</span></h1>
+                <p class="app-muted clamp2">@Project.Idea</p>
+            </div>
+            <button class="btn-ghost" @onclick="() => editing = !editing">@(editing ? "Close" : "✎ Edit brief")</button>
+        </div>
+
+        @if (editing)
+        {
+            <div class="panel">
+                <h2>Business brief</h2>
+                <p class="app-muted">Every module reads this. Improve it and everything downstream gets better.</p>
+                <div class="grid2">
+                    <label class="field">Name<input @bind="edit.Name" maxlength="80" /></label>
+                    <label class="field">Stage
+                        <select @bind="edit.Stage"><option>Idea</option><option>Validating</option><option>Launched</option><option>Scaling</option></select>
+                    </label>
+                </div>
+                <label class="field">Idea<textarea rows="4" @bind="edit.Idea" maxlength="2000"></textarea></label>
+                <label class="field">Target audience<textarea rows="3" @bind="edit.Audience" maxlength="1000"></textarea></label>
+                <label class="field">Goals<textarea rows="2" @bind="edit.Goals" maxlength="1000"></textarea></label>
+                <label class="field">Brand tone<input @bind="edit.Tone" maxlength="120" /></label>
+                <div class="row-end"><button class="btn" @onclick="SaveBrief">Save brief</button></div>
+            </div>
+        }
+
+        <div class="stats">
+            <div class="stat"><span>Modules used</span><b>@doneKeys.Count / @Modules.All.Length</b></div>
+            <div class="stat"><span>Leads</span><b>@leads</b></div>
+            <div class="stat @(due > 0 ? "hot" : "")"><span>Follow-ups due</span><b>@due</b></div>
+            <div class="stat"><span>Page views</span><b>@views</b></div>
+        </div>
+
+        <div class="split">
+            <section class="panel">
+                <h2>Your launch path</h2>
+                <p class="app-muted">Work top to bottom. Each step builds on the one before.</p>
+                <ol class="path">
+                    @foreach (var (key, why) in Path)
+                    {
+                        var m = Modules.Get(key)!;
+                        var done = key == "funnel" ? published > 0 : doneKeys.Contains(key);
+                        <li class="@(done ? "done" : "")">
+                            <span class="path-check">@(done ? "✓" : "")</span>
+                            <div class="path-body">
+                                <b>@m.Icon @m.Name</b>
+                                <span>@why</span>
+                            </div>
+                            <a class="@(done ? "btn-ghost" : "btn") btn-sm" href="/app/p/@Id/m/@key">@(done ? "Open" : "Start")</a>
+                        </li>
+                    }
+                    <li class="@(leads > 0 ? "done" : "")">
+                        <span class="path-check">@(leads > 0 ? "✓" : "")</span>
+                        <div class="path-body"><b>🤝 CRM</b><span>Work your leads: AI-drafted follow-ups, you press send.</span></div>
+                        <a class="btn-ghost btn-sm" href="/app/p/@Id/crm">Open</a>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="panel">
+                <h2>Recent work</h2>
+                @if (recent.Count == 0)
+                {
+                    <p class="app-muted">Nothing yet. Start with the Niche Profiler.</p>
+                }
+                <ul class="recent">
+                    @foreach (var r in recent)
+                    {
+                        var m = Modules.Get(r.ModuleKey);
+                        <li><a href="/app/p/@Id/m/@r.ModuleKey?run=@r.Id"><span>@(m?.Icon) @(m?.Name ?? r.ModuleKey)</span><time>@r.CreatedAt.ToLocalTime().ToString("MMM d, HH:mm")</time></a></li>
+                    }
+                </ul>
+
+                <details class="danger">
+                    <summary>Danger zone</summary>
+                    <p class="app-muted">Deleting removes the brief, all outputs, pages and leads for this business.</p>
+                    @if (!confirmDelete)
+                    {
+                        <button class="btn-danger" @onclick="() => confirmDelete = true">Delete business…</button>
+                    }
+                    else
+                    {
+                        <button class="btn-danger" @onclick="Delete">Yes, delete “@Project.Name” permanently</button>
+                        <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
+                    }
+                </details>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    static readonly (string Key, string Why)[] Path =
+    {
+        ("niche", "Validate the idea and find your sharpest angle, with live web research."),
+        ("product", "Turn the angle into an offer people can buy."),
+        ("funnel", "Publish a landing page that captures leads into your CRM."),
+        ("content", "Drive people to the page with a ready-to-post calendar."),
+        ("email", "Nurture everyone who signs up, automatically in your voice."),
+        ("youtube", "Build long-term reach with video."),
+    };
+
+    bool editing, confirmDelete;
+    Project edit = new();
+    HashSet<string> doneKeys = new();
+    int leads, due, views, published;
+    List<ModuleRun> recent = new();
+
+    protected override async Task OnProjectLoadedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        doneKeys = (await db.ModuleRuns.Where(r => r.ProjectId == Id).Select(r => r.ModuleKey).Distinct().ToListAsync()).ToHashSet();
+        leads = await db.Leads.CountAsync(l => l.ProjectId == Id);
+        var today = DateTime.UtcNow.Date.AddDays(1);
+        due = await db.Leads.CountAsync(l => l.ProjectId == Id && l.NextFollowUp != null && l.NextFollowUp < today && l.Stage != "Won" && l.Stage != "Lost");
+        views = await db.Pages.Where(p => p.ProjectId == Id).SumAsync(p => p.Views);
+        published = await db.Pages.CountAsync(p => p.ProjectId == Id && p.IsPublished);
+        recent = await db.ModuleRuns.Where(r => r.ProjectId == Id).OrderByDescending(r => r.CreatedAt).Take(8).ToListAsync();
+        edit = new Project { Name = Project!.Name, Idea = Project.Idea, Audience = Project.Audience, Goals = Project.Goals, Tone = Project.Tone, Stage = Project.Stage };
+    }
+
+    async Task SaveBrief()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var p = await db.Projects.FirstAsync(x => x.Id == Id && x.UserId == UserId);
+        p.Name = edit.Name.Trim().Length > 0 ? edit.Name.Trim() : p.Name;
+        p.Idea = edit.Idea.Trim(); p.Audience = edit.Audience.Trim(); p.Goals = edit.Goals.Trim(); p.Tone = edit.Tone.Trim(); p.Stage = edit.Stage;
+        await db.SaveChangesAsync();
+        Nav.NavigateTo($"/app/p/{Id}", forceLoad: true);
+    }
+
+    async Task Delete()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var p = await db.Projects.FirstAsync(x => x.Id == Id && x.UserId == UserId);
+        db.Projects.Remove(p); // runs, leads and pages cascade
+        await db.SaveChangesAsync();
+        Nav.NavigateTo("/app", forceLoad: true);
+    }
+}

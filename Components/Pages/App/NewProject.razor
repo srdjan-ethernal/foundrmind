@@ -1,0 +1,101 @@
+@page "/app/new"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDb> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>New business · Foundrmind</PageTitle>
+
+<div class="app-page narrow">
+    <div class="wizard-steps">
+        @for (var s = 1; s <= 3; s++)
+        {
+            <span class="@(s == step ? "on" : s < step ? "done" : "")">@s</span>
+        }
+    </div>
+
+    @if (limitReached)
+    {
+        <div class="notice">You've reached the 2-business limit on the Free plan. Pro (early access) removes it.</div>
+    }
+
+    @if (step == 1)
+    {
+        <h1>What are you building?</h1>
+        <p class="app-muted">Rough is fine. Your AI co-founder will sharpen it.</p>
+        <label class="field">Business name <small>(working title is OK)</small>
+            <input @bind="m.Name" @bind:event="oninput" placeholder="e.g. NightShift Meals" maxlength="80" />
+        </label>
+        <label class="field">The idea in a few sentences
+            <textarea rows="5" @bind="m.Idea" @bind:event="oninput" maxlength="2000" placeholder="What do you sell, to whom, and why would they care?"></textarea>
+        </label>
+        <div class="wizard-nav"><span></span><button class="btn" disabled="@(m.Name.Trim().Length < 2 || m.Idea.Trim().Length < 15)" @onclick="() => step = 2">Next →</button></div>
+    }
+    else if (step == 2)
+    {
+        <h1>Who is it for?</h1>
+        <label class="field">Target audience
+            <textarea rows="3" @bind="m.Audience" maxlength="1000" placeholder="e.g. Night-shift nurses in the US, 25–45, who want to eat healthier but have no time or energy after 12h shifts"></textarea>
+        </label>
+        <label class="field">Goals for the next 90 days
+            <textarea rows="3" @bind="m.Goals" maxlength="1000" placeholder="e.g. 200 waitlist sign-ups and 20 paying customers at $49/month"></textarea>
+        </label>
+        <div class="wizard-nav"><button class="btn-ghost" @onclick="() => step = 1">← Back</button><button class="btn" @onclick="() => step = 3">Next →</button></div>
+    }
+    else
+    {
+        <h1>How should it sound?</h1>
+        <div class="choice-grid">
+            @foreach (var t in Tones)
+            {
+                <button class="choice @(m.Tone == t.Name ? "on" : "")" @onclick="() => m.Tone = t.Name"><b>@t.Name</b><span>@t.Hint</span></button>
+            }
+        </div>
+        <label class="field">Where are you today?
+            <select @bind="m.Stage">
+                <option>Idea</option><option>Validating</option><option>Launched</option><option>Scaling</option>
+            </select>
+        </label>
+        <div class="wizard-nav"><button class="btn-ghost" @onclick="() => step = 2">← Back</button><button class="btn" disabled="@(saving || limitReached)" @onclick="Create">@(saving ? "Setting up…" : "Create my workspace ✨")</button></div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+    int step = 1;
+    bool saving, limitReached;
+    Project m = new();
+
+    record Tone(string Name, string Hint);
+    static readonly Tone[] Tones =
+    {
+        new("Friendly and expert", "Warm, clear, knowledgeable"),
+        new("Bold and punchy", "Short sentences, strong opinions"),
+        new("Premium and calm", "Understated, confident, refined"),
+        new("Playful", "Light, witty, human"),
+        new("Professional B2B", "Precise, credible, no fluff"),
+        new("Straight-talking coach", "Direct, motivating, practical"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uid = (await AuthState!).User.UserId()!.Value;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var plan = await db.Users.Where(u => u.Id == uid).Select(u => u.Plan).FirstAsync();
+        limitReached = plan == Plans.Free && await db.Projects.CountAsync(p => p.UserId == uid) >= 2;
+    }
+
+    async Task Create()
+    {
+        saving = true;
+        var uid = (await AuthState!).User.UserId()!.Value;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        m.UserId = uid;
+        m.Name = m.Name.Trim();
+        m.Idea = m.Idea.Trim();
+        db.Projects.Add(m);
+        await db.SaveChangesAsync();
+        Nav.NavigateTo($"/app/p/{m.Id}/m/niche?welcome=1");
+    }
+}

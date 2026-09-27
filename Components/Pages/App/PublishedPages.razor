@@ -1,0 +1,77 @@
+@page "/app/p/{Id:int}/pages"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inherits ProjectBase
+
+<PageTitle>Published pages · @(Project?.Name) · Foundrmind</PageTitle>
+
+@if (NotFound)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app/p/@Id">@Project.Name</a> / Published pages</div>
+                <h1>🌐 Published pages</h1>
+                <p class="app-muted">Pages built with the Funnel Builder. Sign-ups go to your CRM.</p>
+            </div>
+            <a class="btn" href="/app/p/@Id/m/funnel">＋ Build a page</a>
+        </div>
+
+        @if (rows.Count == 0)
+        {
+            <div class="empty"><div class="empty-icon">🚀</div><h2>No pages yet</h2><p>Generate a landing page and hit Publish.</p><a class="btn" href="/app/p/@Id/m/funnel">Open Funnel Builder</a></div>
+        }
+        <div class="cards">
+            @foreach (var r in rows)
+            {
+                <div class="card">
+                    <div class="card-top"><span class="tag @(r.P.IsPublished ? "live" : "")">@(r.P.IsPublished ? "● Live" : "Unpublished")</span><span class="app-muted small">Updated @r.P.UpdatedAt.ToLocalTime().ToString("MMM d")</span></div>
+                    <h3>@r.P.Title</h3>
+                    <a href="/p/@r.P.Slug" target="_blank" rel="noopener" class="mono">/p/@r.P.Slug ↗</a>
+                    <div class="card-stats"><span>👀 @r.P.Views views</span><span>🤝 @r.Leads sign-ups</span><span>📈 @Rate(r)</span></div>
+                    <div class="row-gap">
+                        <button class="chip" @onclick="() => Toggle(r.P)">@(r.P.IsPublished ? "Unpublish" : "Publish")</button>
+                        <button class="chip danger" @onclick="() => Delete(r.P)">Delete</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    record Row(PublishedPage P, int Leads);
+    List<Row> rows = new();
+
+    protected override async Task OnProjectLoadedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var pages = await db.Pages.Where(p => p.ProjectId == Id).OrderByDescending(p => p.UpdatedAt).ToListAsync();
+        var sources = await db.Leads.Where(l => l.ProjectId == Id).GroupBy(l => l.Source).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
+        rows = pages.Select(p => new Row(p, sources.FirstOrDefault(s => s.Key == $"Page /p/{p.Slug}")?.N ?? 0)).ToList();
+    }
+
+    static string Rate(Row r) => r.P.Views == 0 ? "–" : $"{r.Leads * 100.0 / r.P.Views:0.#}% conv.";
+
+    async Task Toggle(PublishedPage p)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Pages.FirstAsync(x => x.Id == p.Id && x.ProjectId == Id);
+        row.IsPublished = p.IsPublished = !p.IsPublished;
+        await db.SaveChangesAsync();
+    }
+
+    async Task Delete(PublishedPage p)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.Pages.FirstAsync(x => x.Id == p.Id && x.ProjectId == Id);
+        db.Pages.Remove(row);
+        await db.SaveChangesAsync();
+        rows.RemoveAll(r => r.P.Id == p.Id);
+    }
+}

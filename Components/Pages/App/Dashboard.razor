@@ -1,0 +1,56 @@
+@page "/app"
+@attribute [Authorize]
+@layout AppLayout
+@inject IDbContextFactory<AppDb> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Your businesses · Foundrmind</PageTitle>
+
+<div class="app-page">
+    <div class="app-head">
+        <div>
+            <h1>Your businesses</h1>
+            <p class="app-muted">Each business has its own brief, outputs, pages and CRM.</p>
+        </div>
+        <a class="btn" href="/app/new">＋ New business</a>
+    </div>
+
+    @if (rows.Count == 0)
+    {
+        <div class="empty">
+            <div class="empty-icon">🌱</div>
+            <h2>Start with your first idea</h2>
+            <p>Two minutes of questions and your AI co-founder is ready to work.</p>
+            <a class="btn" href="/app/new">Create a business</a>
+        </div>
+    }
+    else
+    {
+        <div class="cards">
+            @foreach (var r in rows)
+            {
+                <a class="card card-link" href="/app/p/@r.P.Id">
+                    <div class="card-top"><span class="app-avatar lg">@(r.P.Name.Length > 0 ? r.P.Name[..1].ToUpperInvariant() : "?")</span><span class="tag">@r.P.Stage</span></div>
+                    <h3>@r.P.Name</h3>
+                    <p class="app-muted clamp">@r.P.Idea</p>
+                    <div class="card-stats"><span>🧩 @r.Modules/@Modules.All.Length modules used</span><span>🤝 @r.Leads leads</span><span>🌐 @r.Pages pages</span></div>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+    record Row(Project P, int Modules, int Leads, int Pages);
+    List<Row> rows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uid = (await AuthState!).User.UserId();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        rows = await db.Projects.Where(p => p.UserId == uid).OrderByDescending(p => p.CreatedAt)
+            .Select(p => new Row(p, p.Runs.Select(r => r.ModuleKey).Distinct().Count(), p.Leads.Count, p.Pages.Count))
+            .ToListAsync();
+    }
+}

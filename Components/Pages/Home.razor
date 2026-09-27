@@ -1,0 +1,212 @@
+@page "/"
+@layout LandingLayout
+
+<PageTitle>Foundrmind: your AI co-founder, from idea to income</PageTitle>
+<HeadContent>
+    <meta name="description" content="Foundrmind is an AI co-founder that does the work: market research, landing pages, content, emails, products and a CRM, all sharing one understanding of your business." />
+    <meta property="og:title" content="Foundrmind: your AI co-founder" />
+    <meta property="og:description" content="Describe your idea. Get research, a live landing page, 30 days of content and a CRM that fills itself." />
+    <meta property="og:type" content="website" />
+</HeadContent>
+
+<div class="lp">
+    <header class="lp-nav">
+        <a class="lp-brand" href="/"><img src="favicon.svg" alt="" width="28" height="28" /> Foundrmind</a>
+        <nav>
+            <a href="#modules">Modules</a>
+            <a href="#how">How it works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
+        </nav>
+        <div class="lp-nav-cta">
+            <a href="/login" class="lp-link">Log in</a>
+            <a href="/signup" class="lp-btn lp-btn-sm">Start free</a>
+        </div>
+    </header>
+
+    <section class="lp-hero">
+        <div class="lp-glow" aria-hidden="true"></div>
+        <div class="lp-hero-copy">
+            <span class="lp-pill"><span class="lp-dot"></span> 7 AI modules live · no credit card</span>
+            <h1>An AI co-founder that <span class="lp-grad">does the work</span>, not just the talking.</h1>
+            <p class="lp-lead">
+                Describe your idea once. Foundrmind researches your market, builds and publishes your landing page,
+                writes your content and emails, designs your first product, and captures every lead in a built-in CRM.
+                Every module works from the same understanding of your business.
+            </p>
+            <div class="lp-hero-cta">
+                <a href="/signup" class="lp-btn">Start building free →</a>
+                <a href="#demo" class="lp-btn lp-btn-ghost">Try it without signing up</a>
+            </div>
+        </div>
+
+        <div class="lp-demo" id="demo">
+            <div class="lp-demo-head">
+                <span class="lp-demo-dots"><i></i><i></i><i></i></span>
+                <span>Instant niche snapshot</span>
+                <span class="lp-demo-live">LIVE AI</span>
+            </div>
+            <form id="demo-form" class="lp-demo-form">
+                <label for="demo-idea">What's your business idea?</label>
+                <textarea id="demo-idea" rows="3" maxlength="600" required
+                          placeholder="e.g. Meal-prep plans for night-shift nurses who want to stop living on vending machines"></textarea>
+                <div class="lp-demo-row">
+                    <div class="lp-chips">
+                        <button type="button" data-idea="Bookkeeping as a service for independent hair salons">Salon bookkeeping</button>
+                        <button type="button" data-idea="An online course teaching retirees to sell their woodworking on Etsy">Woodworking course</button>
+                        <button type="button" data-idea="A B2B newsletter about AI tools for small law firms">Legal AI newsletter</button>
+                    </div>
+                    <button type="submit" class="lp-btn lp-btn-sm" id="demo-go">Generate ✨</button>
+                </div>
+            </form>
+            <div id="demo-out" class="lp-demo-out" aria-live="polite">
+                <p class="lp-muted">Your snapshot appears here in seconds: the sharpest angle, your first customer, an offer to test this week and your next 3 moves.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-strip">
+        <div><b>1 brief</b><span>shared by every module</span></div>
+        <div><b>~10 min</b><span>from idea to published page</span></div>
+        <div><b>Live web</b><span>research with cited sources</span></div>
+        <div><b>0 fake</b><span>testimonials or made-up numbers</span></div>
+    </section>
+
+    <section class="lp-section" id="modules">
+        <h2>Seven modules. One brain.</h2>
+        <p class="lp-sub">Other tools make you re-explain your business in every tab. In Foundrmind, the page, the posts, the emails and the CRM all come from the same brief, so they stay consistent.</p>
+        <div class="lp-grid">
+            @foreach (var m in Modules.All)
+            {
+                <article class="lp-card">
+                    <div class="lp-card-icon">@m.Icon</div>
+                    <h3>@m.Name <span class="lp-badge">Live</span></h3>
+                    <p>@m.Tagline</p>
+                    <span class="lp-save">Saves: @m.Saves</span>
+                </article>
+            }
+            <article class="lp-card">
+                <div class="lp-card-icon">🤝</div>
+                <h3>AI CRM <span class="lp-badge">Live</span></h3>
+                <p>Leads from your published pages flow in automatically. Pipeline stages, follow-up reminders, and AI-drafted follow-ups that reference what each lead told you.</p>
+                <span class="lp-save">Saves: never miss a lead again</span>
+            </article>
+        </div>
+        <div class="lp-roadmap">
+            <span>On the roadmap:</span>
+            <em>Ads Studio</em><em>SEO Blog Writer</em><em>Social auto-posting</em><em>Proposals &amp; invoices</em><em>Podcast Studio</em><em>Custom domains</em><em>Team seats</em>
+        </div>
+    </section>
+
+    <section class="lp-section" id="how">
+        <h2>From idea to launch in three steps</h2>
+        <div class="lp-steps">
+            <div class="lp-step"><span>1</span><h3>Tell us about the business</h3><p>Idea, audience, goals and tone. Two minutes, once. This becomes the brief every module works from.</p></div>
+            <div class="lp-step"><span>2</span><h3>Follow your launch path</h3><p>Research the niche, shape the offer, publish the page, fill the content calendar. Each step builds on the previous one.</p></div>
+            <div class="lp-step"><span>3</span><h3>Capture and convert</h3><p>Visitors sign up on your page, land in your CRM, and get a personal follow-up drafted for you. You press send.</p></div>
+        </div>
+    </section>
+
+    <section class="lp-section lp-compare">
+        <h2>One workspace instead of eight tabs</h2>
+        <div class="lp-compare-grid">
+            <div class="lp-compare-col">
+                <h3>The usual stack</h3>
+                <ul class="lp-x">
+                    <li>Market research tool</li><li>Landing page builder</li><li>AI writing assistant</li><li>Social content planner</li>
+                    <li>Email copy tool</li><li>Course outline tool</li><li>Video script tool</li><li>CRM</li>
+                </ul>
+                <p class="lp-muted">Eight logins, eight bills, and none of them know what the others said.</p>
+            </div>
+            <div class="lp-compare-col lp-compare-us">
+                <h3>Foundrmind</h3>
+                <ul class="lp-check">
+                    <li>All of the above in one place</li><li>One brief → consistent voice everywhere</li><li>Pages publish instantly with lead capture</li>
+                    <li>Leads flow straight into the CRM</li><li>Every output saved, versioned, exportable</li><li>Start free, no card</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-section" id="pricing">
+        <h2>Simple pricing</h2>
+        <p class="lp-sub">Start free. Paid plans are in early access: sign up free now and upgrade from inside the app when billing opens.</p>
+        <div class="lp-prices">
+            <div class="lp-price">
+                <h3>Free</h3><div class="lp-amount">$0</div>
+                <ul class="lp-check"><li>30 AI runs / month</li><li>2 businesses</li><li>All 7 modules</li><li>Publish landing pages</li><li>CRM with lead capture</li></ul>
+                <a href="/signup" class="lp-btn lp-btn-ghost">Start free</a>
+            </div>
+            <div class="lp-price lp-price-hot">
+                <span class="lp-ribbon">Most popular</span>
+                <h3>Pro</h3><div class="lp-amount">$29<small>/mo</small></div>
+                <ul class="lp-check"><li>500 AI runs / month</li><li>Unlimited businesses</li><li>Unlimited pages</li><li>Priority generation</li><li>Everything in Free</li></ul>
+                <a href="/signup" class="lp-btn">Start free, upgrade later</a>
+            </div>
+            <div class="lp-price">
+                <h3>Scale</h3><div class="lp-amount">$79<small>/mo</small></div>
+                <ul class="lp-check"><li>2,000 AI runs / month</li><li>Team seats <em>(soon)</em></li><li>Custom domains <em>(soon)</em></li><li>Everything in Pro</li></ul>
+                <a href="/signup" class="lp-btn lp-btn-ghost">Start free</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="lp-section" id="faq">
+        <h2>Questions</h2>
+        <div class="lp-faq">
+            <details><summary>Do I need technical skills?</summary><p>No. You answer a few questions in plain language; Foundrmind writes, designs and publishes. You can copy or download everything it makes.</p></details>
+            <details><summary>Is the market research real?</summary><p>The Niche Profiler searches the live web and links its sources, so you can check every claim. It never invents statistics or testimonials, and it marks estimates as estimates.</p></details>
+            <details><summary>Who owns what Foundrmind creates?</summary><p>You do. Pages, copy, scripts and course material are yours to use, edit and export.</p></details>
+            <details><summary>Will you promise me $10K a month?</summary><p>No, and be wary of anyone who does. Foundrmind removes weeks of busywork so you can test ideas faster. Whether they sell is still up to the market, which is why the first module tells you honestly whether an idea is worth pursuing.</p></details>
+            <details><summary>Which AI does it use?</summary><p>Anthropic's Claude, one of the leading frontier models, with live web search for research.</p></details>
+            <details><summary>Can I cancel anytime?</summary><p>Yes. Free stays free. Paid plans will be monthly with no lock-in.</p></details>
+        </div>
+    </section>
+
+    <section class="lp-final">
+        <h2>Your idea deserves more than a notes app.</h2>
+        <p>Give it a market, a page, a voice and its first leads, this week.</p>
+        <a href="/signup" class="lp-btn">Start building free →</a>
+    </section>
+
+    <footer class="lp-footer">
+        <div><a class="lp-brand" href="/"><img src="favicon.svg" alt="" width="22" height="22" /> Foundrmind</a></div>
+        <div class="lp-muted">© @DateTime.UtcNow.Year Foundrmind. All rights reserved.</div>
+        <div class="lp-footer-links"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:hello@foundrmind.com">Contact</a></div>
+    </footer>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById('demo-form');
+  if (!form || form.dataset.bound) return;
+  form.dataset.bound = '1';
+  const idea = document.getElementById('demo-idea'), out = document.getElementById('demo-out'), go = document.getElementById('demo-go');
+  document.querySelectorAll('.lp-chips button').forEach(b => b.addEventListener('click', () => { idea.value = b.dataset.idea; idea.focus(); }));
+  const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const render = md => esc(md)
+      .replace(/^## (.*)$/gm, '<h4>$1</h4>')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/^[-*] (.*)$/gm, '<li>$1</li>')
+      .replace(/\n{2,}/g, '<br>');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (idea.value.trim().length < 8) { idea.focus(); return; }
+    go.disabled = true; go.textContent = 'Thinking…';
+    out.innerHTML = '<p class="lp-muted lp-typing">Analysing your idea</p>';
+    try {
+      const res = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea: idea.value }) });
+      if (!res.ok) { out.innerHTML = '<p>' + esc(await res.text()) + '</p>'; return; }
+      const reader = res.body.getReader(), dec = new TextDecoder(); let text = '';
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        text += dec.decode(value, { stream: true });
+        out.innerHTML = render(text);
+        out.scrollTop = out.scrollHeight;
+      }
+      out.innerHTML = render(text) + '<div class="lp-demo-next">Like it? This was the 30-second version. <a href="/signup">Create a free account</a> to get the full, web-researched profile, then a landing page, content and emails built on it.</div>';
+    } catch { out.innerHTML = '<p>Something went wrong. Please try again.</p>'; }
+    finally { go.disabled = false; go.textContent = 'Generate ✨'; }
+  });
+})();
+</script>

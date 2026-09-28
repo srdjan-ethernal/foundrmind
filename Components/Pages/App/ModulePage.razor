@@ -213,7 +213,7 @@ else if (Project != null)
 
     async Task RefreshQuota()
     {
-        var (used, lim) = await UsageSvc.GetAsync(UserId);
+        var (used, lim) = await UsageSvc.GetAsync(Project!.UserId);
         limit = lim;
         quotaOut = used >= lim;
     }

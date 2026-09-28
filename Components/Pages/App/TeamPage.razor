@@ -1,0 +1,153 @@
+@page "/app/team"
+@attribute [Authorize]
+@layout AppLayout
+@rendermode InteractiveServer
+@inject IDbContextFactory<AppDb> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Team · Foundrmind</PageTitle>
+
+<div class="app-page">
+    <div class="app-head">
+        <div>
+            <h1>Team</h1>
+            <p class="app-muted">Teammates get full access to all your businesses: modules, CRM, pages and the social calendar. Only you can delete a business, manage billing or connect social accounts. AI runs count toward your plan.</p>
+        </div>
+    </div>
+
+    @if (message != null) { <div class="notice @(good ? "good" : "bad")">@message</div> }
+
+    @if (seats == 0)
+    {
+        <div class="empty">
+            <div class="empty-icon">👥</div>
+            <h2>Teams are part of Scale</h2>
+            <p>Invite up to 5 teammates to work on your businesses together.</p>
+            <a class="btn" href="/app/billing">See plans</a>
+        </div>
+    }
+    else
+    {
+        <div class="panel">
+            <div class="row-between">
+                <h2>Seats: @members.Count / @seats</h2>
+            </div>
+            <div class="invite-row">
+                <input type="email" placeholder="teammate@company.com" @bind="inviteEmail" @bind:event="oninput" @onkeydown="InviteKey" maxlength="200" />
+                <button class="btn" disabled="@(members.Count >= seats || string.IsNullOrWhiteSpace(inviteEmail))" @onclick="Invite">Invite</button>
+            </div>
+            <p class="app-muted small">We don't send emails yet. Tell your teammate to create an account (or log in) at <b>@SignupUrl</b> with the invited address. They'll get access automatically.</p>
+
+            @if (members.Count > 0)
+            {
+                <table class="tbl">
+                    <thead><tr><th>Email</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var m in members)
+                        {
+                            <tr>
+                                <td>@m.Email</td>
+                                <td>@(m.MemberUserId == null ? "Invited, waiting for sign-up" : $"Active since {m.AcceptedAt?.ToLocalTime():MMM d}")</td>
+                                <td class="right"><button class="chip danger" @onclick="() => Remove(m)">Remove</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @if (memberOf.Count > 0)
+    {
+        <div class="panel">
+            <h2>Teams you're on</h2>
+            <table class="tbl">
+                <tbody>
+                    @foreach (var t in memberOf)
+                    {
+                        <tr>
+                            <td>@t.OwnerName's team <span class="app-muted small">(@t.OwnerEmail)</span></td>
+                            <td>@(t.Active ? "Active" : "Paused: owner isn't on Scale")</td>
+                            <td class="right"><button class="chip danger" @onclick="() => Leave(t.Id)">Leave</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+    record Membership(int Id, string OwnerName, string OwnerEmail, bool Active);
+
+    int uid, seats;
+    string ownerEmail = "";
+    List<TeamMember> members = new();
+    List<Membership> memberOf = new();
+    string? inviteEmail, message;
+    bool good;
+
+    string SignupUrl => Nav.BaseUri.TrimEnd('/') + "/signup";
+
+    protected override async Task OnInitializedAsync()
+    {
+        uid = (await AuthState!).User.UserId()!.Value;
+        await Load();
+    }
+
+    async Task Load()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var me = await db.Users.FirstAsync(u => u.Id == uid);
+        ownerEmail = me.Email;
+        seats = Plans.Seats(me.Plan);
+        members = await db.TeamMembers.Where(t => t.OwnerUserId == uid).OrderBy(t => t.CreatedAt).ToListAsync();
+        memberOf = await db.TeamMembers.Where(t => t.MemberUserId == uid)
+            .Join(db.Users, t => t.OwnerUserId, u => u.Id, (t, u) => new Membership(t.Id, u.Name, u.Email, u.Plan == Plans.Scale))
+            .ToListAsync();
+    }
+
+    async Task Invite()
+    {
+        message = null;
+        var email = (inviteEmail ?? "").Trim().ToLowerInvariant();
+        if (!email.Contains('@') || email.Length < 5) { Say("Enter a valid email address.", false); return; }
+        if (email == ownerEmail) { Say("That's you. You already have access.", false); return; }
+        if (members.Any(m => m.Email == email)) { Say("That person is already invited.", false); return; }
+        if (members.Count >= seats) { Say($"All {seats} seats are in use.", false); return; }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var existing = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        db.TeamMembers.Add(new TeamMember
+        {
+            OwnerUserId = uid, Email = email,
+            MemberUserId = existing?.Id, AcceptedAt = existing != null ? DateTime.UtcNow : null,
+        });
+        await db.SaveChangesAsync();
+        inviteEmail = "";
+        await Load();
+        Say(existing != null ? $"{email} already has an account and now has access." : $"Invited {email}. They'll get access as soon as they sign up.", true);
+    }
+
+    void InviteKey(KeyboardEventArgs e) { if (e.Key == "Enter") _ = Invite(); }
+
+    async Task Remove(TeamMember m)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.TeamMembers.FirstOrDefaultAsync(t => t.Id == m.Id && t.OwnerUserId == uid);
+        if (row != null) { db.TeamMembers.Remove(row); await db.SaveChangesAsync(); }
+        await Load();
+        Say($"Removed {m.Email}.", true);
+    }
+
+    async Task Leave(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.TeamMembers.FirstOrDefaultAsync(t => t.Id == id && t.MemberUserId == uid);
+        if (row != null) { db.TeamMembers.Remove(row); await db.SaveChangesAsync(); }
+        Nav.NavigateTo("/app/team", forceLoad: true);
+    }
+
+    void Say(string text, bool ok) { message = text; good = ok; }
+}

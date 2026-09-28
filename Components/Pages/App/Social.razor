@@ -37,7 +37,15 @@ else if (Project != null)
                         @if (acc != null) { <span class="tag live">● @acc.DisplayName</span> }
                         else if (!p.IsConfigured) { <span class="tag">Not set up</span> }
                     </div>
-                    @if (acc != null)
+                    @if (acc != null && !IsOwner)
+                    {
+                        <span class="app-muted small">Connected by the business owner.</span>
+                    }
+                    else if (!IsOwner)
+                    {
+                        <span class="app-muted small">Only the business owner can connect accounts.</span>
+                    }
+                    else if (acc != null)
                     {
                         <span class="app-muted small">Auto-posting on@(acc.ExpiresAt is { } e && string.IsNullOrEmpty(acc.RefreshTokenEnc) ? $" · reconnect by {e.ToLocalTime():MMM d}" : "")</span>
                         <button class="chip" @onclick="() => Disconnect(p.Key)">Disconnect</button>
@@ -215,7 +223,7 @@ else if (Project != null)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         posts = await db.Posts.Where(p => p.ProjectId == Id).OrderBy(p => p.ScheduledAt).ToListAsync();
-        accounts = await db.SocialAccounts.Where(a => a.UserId == UserId).ToListAsync();
+        accounts = await db.SocialAccounts.Where(a => a.UserId == Project!.UserId).ToListAsync();
         contentRuns = await db.ModuleRuns.Where(r => r.ProjectId == Id && r.ModuleKey == "content" && r.Output != "")
             .OrderByDescending(r => r.CreatedAt).Take(10).ToListAsync();
         if (importRunId == 0 && contentRuns.Count > 0) importRunId = contentRuns[0].Id;
@@ -340,6 +348,7 @@ else if (Project != null)
 
     async Task Disconnect(string provider)
     {
+        if (!IsOwner) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         var acc = await db.SocialAccounts.FirstOrDefaultAsync(a => a.UserId == UserId && a.Provider == provider);
         if (acc != null) { db.SocialAccounts.Remove(acc); await db.SaveChangesAsync(); }

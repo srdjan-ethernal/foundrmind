@@ -510,3 +510,6 @@ h1:focus { outline: none; }
 @media (max-width: 1100px) { .stats6 { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 520px) { .stats6 { grid-template-columns: repeat(2, 1fr); } }
 .app-admin { color: #9ea6d8 !important; font-size: .85rem; padding: 0 6px; }
+.invite-row { display: flex; gap: 8px; margin: 12px 0 8px; }
+.invite-row input { flex: 1; max-width: 420px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
+.tbl td.right { text-align: right; }

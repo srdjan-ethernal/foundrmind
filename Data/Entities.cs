@@ -24,6 +24,9 @@ public static class Plans
 
     public static string Label(string plan) => plan switch { Pro => "Pro", Scale => "Scale", _ => "Free" };
 
+    /// <summary>Team seats in addition to the owner.</summary>
+    public static int Seats(string plan) => plan == Scale ? 5 : 0;
+
     public static int MonthlyRuns(string plan) => plan switch
     {
         Pro => 1500,
@@ -158,4 +161,15 @@ public class AiUsage
     public int OutputTokens { get; set; }
     public int WebSearches { get; set; }
     public decimal CostUsd { get; set; }
+}
+
+/// <summary>A seat on a Scale owner's team. Pending until someone signs up or logs in with the invited email.</summary>
+public class TeamMember
+{
+    public int Id { get; set; }
+    public int OwnerUserId { get; set; }
+    public string Email { get; set; } = "";
+    public int? MemberUserId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? AcceptedAt { get; set; }
 }

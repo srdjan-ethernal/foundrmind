@@ -40,8 +40,10 @@
         var user = new User { Email = email, Name = Input.Name.Trim(), PasswordHash = Passwords.Hash(Input.Password) };
         db.Users.Add(user);
         await db.SaveChangesAsync();
+        await Access.AcceptInvitesAsync(db, user);
+        var joinedTeam = await db.TeamMembers.AnyAsync(t => t.MemberUserId == user.Id);
         await AuthHelper.SignIn(HttpContext, user);
-        Nav.NavigateTo("/app/new", forceLoad: true);
+        Nav.NavigateTo(joinedTeam ? "/app" : "/app/new", forceLoad: true);
     }
 
     public class SignupModel

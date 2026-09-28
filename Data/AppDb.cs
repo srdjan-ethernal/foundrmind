@@ -12,6 +12,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<SocialAccount> SocialAccounts => Set<SocialAccount>();
     public DbSet<ScheduledPost> Posts => Set<ScheduledPost>();
     public DbSet<AiUsage> AiUsage => Set<AiUsage>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -23,6 +24,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<SocialAccount>().HasIndex(a => new { a.UserId, a.Provider }).IsUnique();
         b.Entity<ScheduledPost>().HasIndex(p => new { p.Status, p.ScheduledAt });
         b.Entity<AiUsage>().HasIndex(u => u.CreatedAt);
+        b.Entity<TeamMember>().HasIndex(t => new { t.OwnerUserId, t.Email }).IsUnique();
+        b.Entity<TeamMember>().HasIndex(t => t.MemberUserId);
         b.Entity<AiUsage>().Property(u => u.CostUsd).HasPrecision(12, 6);
         b.Entity<ModuleRun>().Property(r => r.CostUsd).HasPrecision(12, 6);
     }

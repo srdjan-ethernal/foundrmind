@@ -186,7 +186,7 @@ else if (Project != null)
     async Task DraftFollowUp(Lead l)
     {
         error = null;
-        var (used, lim) = await UsageSvc.GetAsync(UserId);
+        var (used, lim) = await UsageSvc.GetAsync(Project!.UserId);
         if (used >= lim) { error = $"You've used all {lim} AI runs this month."; return; }
 
         var system = Modules.System(Project!);

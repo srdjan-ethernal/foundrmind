@@ -49,7 +49,7 @@
     {
         var uid = (await AuthState!).User.UserId();
         await using var db = await DbFactory.CreateDbContextAsync();
-        rows = await db.Projects.Where(p => p.UserId == uid).OrderByDescending(p => p.CreatedAt)
+        rows = await Access.Projects(db, uid!.Value).OrderByDescending(p => p.CreatedAt)
             .Select(p => new Row(p, p.Runs.Where(r => r.ModuleKey != "crm-followup").Select(r => r.ModuleKey).Distinct().Count(), p.Leads.Count, p.Pages.Count))
             .ToListAsync();
     }

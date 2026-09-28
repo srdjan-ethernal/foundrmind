@@ -39,6 +39,7 @@
             error = "Wrong email or password.";
             return;
         }
+        await Access.AcceptInvitesAsync(db, user);
         await AuthHelper.SignIn(HttpContext, user);
         Nav.NavigateTo("/app", forceLoad: true);
     }

@@ -17,6 +17,8 @@ public abstract class ProjectBase : ComponentBase
     protected Project? Project;
     protected int UserId;
     protected bool NotFound;
+    /// <summary>True for the business owner; team members can use everything except deleting it, billing and social connections.</summary>
+    protected bool IsOwner => Project != null && Project.UserId == UserId;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -25,7 +27,7 @@ public abstract class ProjectBase : ComponentBase
         if (uid == null) { NotFound = true; return; }
         UserId = uid.Value;
         await using var db = await DbFactory.CreateDbContextAsync();
-        Project = await db.Projects.FirstOrDefaultAsync(p => p.Id == Id && p.UserId == UserId);
+        Project = await Access.Projects(db, UserId).FirstOrDefaultAsync(p => p.Id == Id);
         NotFound = Project == null;
         if (!NotFound) await OnProjectLoadedAsync();
     }

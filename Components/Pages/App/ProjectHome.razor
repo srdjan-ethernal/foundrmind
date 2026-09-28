@@ -88,6 +88,8 @@ else if (Project != null)
                     }
                 </ul>
 
+                @if (IsOwner)
+                {
                 <details class="danger">
                     <summary>Danger zone</summary>
                     <p class="app-muted">Deleting removes the brief, all outputs, pages and leads for this business.</p>
@@ -101,6 +103,7 @@ else if (Project != null)
                         <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
                     }
                 </details>
+                }
             </section>
         </div>
 
@@ -154,7 +157,7 @@ else if (Project != null)
     async Task SaveBrief()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        var p = await db.Projects.FirstAsync(x => x.Id == Id && x.UserId == UserId);
+        var p = await db.Projects.FirstAsync(x => x.Id == Id);
         p.Name = edit.Name.Trim().Length > 0 ? edit.Name.Trim() : p.Name;
         p.Idea = edit.Idea.Trim(); p.Audience = edit.Audience.Trim(); p.Goals = edit.Goals.Trim(); p.Tone = edit.Tone.Trim(); p.Stage = edit.Stage;
         await db.SaveChangesAsync();

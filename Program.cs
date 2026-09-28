@@ -190,7 +190,7 @@ app.MapPost("/api/demo", async (HttpContext ctx, Ai ai, DemoLimiter limiter, Dem
         return Results.Empty;
     }
 
-    await ai.StreamAsync(new AiRequest(Demo.System, Demo.Task(idea), MaxTokens: 1800, Effort: "low"), async t =>
+    await ai.StreamAsync(new AiRequest(Demo.System, Demo.Task(idea), "demo", null, MaxTokens: 1800, Effort: "low"), async t =>
     {
         await ctx.Response.WriteAsync(t);
         await ctx.Response.Body.FlushAsync();

@@ -2,6 +2,7 @@
 @inject IDbContextFactory<AppDb> DbFactory
 @inject NavigationManager Nav
 @inject Usage UsageSvc
+@inject IConfiguration Config
 
 <div class="app">
     <aside class="app-side">
@@ -44,6 +45,7 @@
                 <div class="app-bar"><i style="width:@(Math.Min(100, limit == 0 ? 0 : used * 100 / limit))%"></i></div>
                 <div class="app-usage-plan"><span>@Plans.Label(plan) plan</span><a href="/app/billing">@(plan == Plans.Free ? "Upgrade →" : "Billing")</a></div>
             </div>
+            @if (isAdmin) { <a class="app-admin" href="/app/admin">⚙ Admin</a> }
             <div class="app-user">
                 <span>@userName</span>
                 <form method="post" action="/logout"><AntiforgeryToken /><button type="submit">Log out</button></form>
@@ -69,6 +71,7 @@
     int used, limit;
     string userName = "";
     string plan = Plans.Free;
+    bool isAdmin;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -77,6 +80,8 @@
         var uid = user.UserId();
         if (uid == null) return;
         userName = user.Identity?.Name ?? "";
+        var adminEmails = (Config["ADMIN_EMAILS"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        isAdmin = adminEmails.Contains(user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "", StringComparer.OrdinalIgnoreCase);
 
         var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Split('/');
         currentId = path.Length >= 3 && path[0] == "app" && path[1] == "p" && int.TryParse(path[2], out var id) ? id : null;

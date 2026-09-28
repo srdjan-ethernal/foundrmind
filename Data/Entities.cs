@@ -62,6 +62,7 @@ public class ModuleRun
     public string Status { get; set; } = "done"; // done | error | refused | manual
     public int InputTokens { get; set; }
     public int OutputTokens { get; set; }
+    public decimal CostUsd { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -143,4 +144,18 @@ public class ScheduledPost
     public int DayNumber { get; set; }
     public DateTime? PostedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>One Claude API call, priced at the time of the call. Source of truth for AI spend.</summary>
+public class AiUsage
+{
+    public long Id { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string Source { get; set; } = "";
+    public int? UserId { get; set; }
+    public string Model { get; set; } = "";
+    public int InputTokens { get; set; }
+    public int OutputTokens { get; set; }
+    public int WebSearches { get; set; }
+    public decimal CostUsd { get; set; }
 }

@@ -11,6 +11,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<PublishedPage> Pages => Set<PublishedPage>();
     public DbSet<SocialAccount> SocialAccounts => Set<SocialAccount>();
     public DbSet<ScheduledPost> Posts => Set<ScheduledPost>();
+    public DbSet<AiUsage> AiUsage => Set<AiUsage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -21,5 +22,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<Lead>().Property(l => l.Value).HasPrecision(12, 2);
         b.Entity<SocialAccount>().HasIndex(a => new { a.UserId, a.Provider }).IsUnique();
         b.Entity<ScheduledPost>().HasIndex(p => new { p.Status, p.ScheduledAt });
+        b.Entity<AiUsage>().HasIndex(u => u.CreatedAt);
+        b.Entity<AiUsage>().Property(u => u.CostUsd).HasPrecision(12, 6);
+        b.Entity<ModuleRun>().Property(r => r.CostUsd).HasPrecision(12, 6);
     }
 }

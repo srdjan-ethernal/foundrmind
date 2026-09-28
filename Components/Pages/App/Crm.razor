@@ -199,7 +199,7 @@ else if (Project != null)
 
         draftingId = l.Id; streaming = "";
         var sb = new System.Text.StringBuilder();
-        var result = await AiSvc.StreamAsync(new AiRequest(system, task, MaxTokens: 2000, Effort: "medium"), async t =>
+        var result = await AiSvc.StreamAsync(new AiRequest(system, task, "crm-followup", Project!.UserId, MaxTokens: 2000, Effort: "low"), async t =>
         {
             sb.Append(t);
             streaming = sb.ToString();
@@ -210,7 +210,7 @@ else if (Project != null)
         if (result.Text.Length > 0)
         {
             await Update(l, x => x.AiDraft = result.Text.Trim());
-            await LogRun(result.Status, result.InputTokens, result.OutputTokens, result.Text);
+            await LogRun(result.Status, result.InputTokens, result.OutputTokens, result.Text, result.CostUsd);
         }
     }
 
@@ -221,10 +221,10 @@ else if (Project != null)
         manualFor = null;
     }
 
-    async Task LogRun(string status, int inTok, int outTok, string text)
+    async Task LogRun(string status, int inTok, int outTok, string text, decimal cost)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        db.ModuleRuns.Add(new ModuleRun { ProjectId = Id, ModuleKey = "crm-followup", Output = text, Status = status, InputTokens = inTok, OutputTokens = outTok });
+        db.ModuleRuns.Add(new ModuleRun { ProjectId = Id, ModuleKey = "crm-followup", Output = text, Status = status, InputTokens = inTok, OutputTokens = outTok, CostUsd = cost });
         await db.SaveChangesAsync();
     }
 

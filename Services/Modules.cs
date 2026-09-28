@@ -15,7 +15,11 @@ public record ModuleDef(
     ModuleField[] Fields,
     OutputKind Output,
     bool WebSearch,
-    Func<Project, IReadOnlyDictionary<string, string>, string> Task);
+    Func<Project, IReadOnlyDictionary<string, string>, string> Task)
+{
+    /// <summary>Claude effort level. "high" for research and the landing page; "medium" elsewhere keeps cost per run down.</summary>
+    public string Effort { get; init; } = "medium";
+}
 
 public static class Modules
 {
@@ -44,7 +48,7 @@ public static class Modules
                 ## Pricing recommendation (entry / core / premium with reasoning)
                 ## 3 offers to test first
                 ## Risks and how to de-risk them in the next 30 days
-                """),
+                """) { Effort = "high" },
 
         new("funnel", "Funnel Builder", "🚀",
             "A complete, conversion-focused landing page you can publish in one click. Leads land in your CRM.",
@@ -69,7 +73,7 @@ public static class Modules
                 - Include exactly one lead capture form with the attribute data-foundrmind-lead, containing inputs name="name", name="email" (type=email, required) and optionally a textarea name="message". Do NOT set action or method; the platform wires it up.
                 - Copy must be specific to this business and audience, not generic.
                 - Output ONLY the HTML document, starting with <!DOCTYPE html>. No markdown fences, no commentary.
-                """),
+                """) { Effort = "high" },
 
         new("content", "Content Reactor", "⚡",
             "A ready-to-post content calendar across your channels.",

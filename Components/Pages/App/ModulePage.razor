@@ -276,7 +276,7 @@ else if (Project != null)
         AiResult result;
         try
         {
-            result = await AiSvc.StreamAsync(new AiRequest(system, task, WebSearch: Def!.WebSearch), async t =>
+            result = await AiSvc.StreamAsync(new AiRequest(system, task, Key, Project!.UserId, WebSearch: Def!.WebSearch, Effort: Def.Effort), async t =>
             {
                 sb.Append(t);
                 if ((DateTime.UtcNow - last).TotalMilliseconds > 90)
@@ -296,17 +296,17 @@ else if (Project != null)
         error = result.Error;
         refineText = "";
         if (output.Length > 0 || result.Status != "error")
-            await Save(result.Status, result.InputTokens, result.OutputTokens);
+            await Save(result.Status, result.InputTokens, result.OutputTokens, result.CostUsd);
         await RefreshQuota();
     }
 
-    async Task Save(string status, int inTok, int outTok)
+    async Task Save(string status, int inTok, int outTok, decimal cost = 0)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         var run = new ModuleRun
         {
             ProjectId = Id, ModuleKey = Key, InputJson = JsonSerializer.Serialize(inputs),
-            Output = output, Status = status, InputTokens = inTok, OutputTokens = outTok,
+            Output = output, Status = status, InputTokens = inTok, OutputTokens = outTok, CostUsd = cost,
         };
         db.ModuleRuns.Add(run);
         await db.SaveChangesAsync();

@@ -1,0 +1,146 @@
+@page "/app/admin"
+@attribute [Authorize]
+@layout AppLayout
+@inject IDbContextFactory<AppDb> DbFactory
+@inject IConfiguration Config
+@inject Ai AiSvc
+
+<PageTitle>Admin · Foundrmind</PageTitle>
+
+@if (!allowed)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else
+{
+    <div class="app-page wide">
+        <div class="app-head">
+            <div>
+                <h1>Admin</h1>
+                <p class="app-muted">Revenue, AI spend and margins across all accounts. Prices from the plan table; AI cost from logged API usage.</p>
+            </div>
+        </div>
+
+        <div class="stats stats6">
+            <div class="stat"><span>MRR</span><b>@Money(mrr)</b></div>
+            <div class="stat"><span>AI spend this month</span><b>@Money(spendMonth)</b></div>
+            <div class="stat @(mrr > 0 && spendMonth > mrr * 0.4m ? "hot" : "")"><span>AI cost / MRR</span><b>@(mrr == 0 ? "–" : $"{spendMonth / mrr:P0}")</b></div>
+            <div class="stat"><span>AI spend today</span><b>@Money(spendToday)</b>@if (AiSvc.DailyBudgetUsd > 0) { <em class="sub">of @Money(AiSvc.DailyBudgetUsd) cap</em> }</div>
+            <div class="stat"><span>Users</span><b>@users</b><em class="sub">+@newUsers this week</em></div>
+            <div class="stat"><span>Paying</span><b>@(pro + scale)</b><em class="sub">@pro Pro · @scale Scale</em></div>
+        </div>
+
+        <div class="split">
+            <section class="panel">
+                <h2>AI spend, last 14 days</h2>
+                <div class="bars">
+                    @{ var max = Math.Max(0.01m, daily.Max(d => d.Cost)); }
+                    @foreach (var d in daily)
+                    {
+                        <div class="bar" title="@d.Day.ToString("MMM d"): @Money(d.Cost) · @d.Calls calls">
+                            <i style="height:@((int)(d.Cost / max * 100))%"></i>
+                            <span>@d.Day.ToString("%d")</span>
+                        </div>
+                    }
+                </div>
+                <h2 class="mt">By source (this month)</h2>
+                <table class="tbl">
+                    <thead><tr><th>Source</th><th>Calls</th><th>Avg / call</th><th>Total</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in bySource)
+                        {
+                            <tr><td>@(Modules.Get(s.Source)?.Name ?? s.Source)</td><td>@s.Calls</td><td>@Money(s.Calls == 0 ? 0 : s.Cost / s.Calls)</td><td>@Money(s.Cost)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="panel">
+                <h2>Top accounts by AI cost (this month)</h2>
+                <table class="tbl">
+                    <thead><tr><th>Account</th><th>Plan</th><th>Revenue</th><th>AI cost</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in topAccounts)
+                        {
+                            <tr class="@(a.Cost > a.Revenue ? "loss" : "")">
+                                <td>@a.Email</td><td>@Plans.Label(a.Plan)</td><td>@Money(a.Revenue)</td><td>@Money(a.Cost)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="app-muted small">Rows in red cost more in AI than they pay. Consider lowering their plan's quota or effort.</p>
+                <h2 class="mt">Activity (this month)</h2>
+                <ul class="kv">
+                    <li><span>Module runs</span><b>@runs</b></li>
+                    <li><span>Landing-page demos</span><b>@demos</b></li>
+                    <li><span>Pages published</span><b>@pages</b></li>
+                    <li><span>Leads captured</span><b>@leads</b></li>
+                    <li><span>Social posts published</span><b>@posted</b></li>
+                </ul>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter] Task<AuthenticationState>? AuthState { get; set; }
+
+    record DayRow(DateTime Day, decimal Cost, int Calls);
+    record SourceRow(string Source, int Calls, decimal Cost);
+    record AccountRow(string Email, string Plan, decimal Revenue, decimal Cost);
+
+    bool allowed;
+    decimal mrr, spendMonth, spendToday;
+    int users, newUsers, pro, scale, runs, demos, pages, leads, posted;
+    List<DayRow> daily = new();
+    List<SourceRow> bySource = new();
+    List<AccountRow> topAccounts = new();
+
+    static decimal Price(string plan) => plan switch { Plans.Pro => 99m, Plans.Scale => 399m, _ => 0m };
+    static string Money(decimal v) => v < 10 ? v.ToString("$0.00") : v.ToString("$#,0");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var email = (await AuthState!).User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "";
+        var admins = (Config["ADMIN_EMAILS"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        allowed = admins.Contains(email, StringComparer.OrdinalIgnoreCase);
+        if (!allowed) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        var month = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var since14 = now.Date.AddDays(-13);
+
+        users = await db.Users.CountAsync();
+        newUsers = await db.Users.CountAsync(u => u.CreatedAt >= now.AddDays(-7));
+        pro = await db.Users.CountAsync(u => u.Plan == Plans.Pro);
+        scale = await db.Users.CountAsync(u => u.Plan == Plans.Scale);
+        mrr = pro * Price(Plans.Pro) + scale * Price(Plans.Scale);
+
+        var usage = await db.AiUsage.Where(u => u.CreatedAt >= (month < since14 ? month : since14))
+            .Select(u => new { u.CreatedAt, u.CostUsd, u.Source, u.UserId }).ToListAsync();
+        var monthUsage = usage.Where(u => u.CreatedAt >= month).ToList();
+        spendMonth = monthUsage.Sum(u => u.CostUsd);
+        spendToday = usage.Where(u => u.CreatedAt >= now.Date).Sum(u => u.CostUsd);
+        daily = Enumerable.Range(0, 14).Select(i => since14.AddDays(i))
+            .Select(d => new DayRow(d, usage.Where(u => u.CreatedAt.Date == d).Sum(u => u.CostUsd), usage.Count(u => u.CreatedAt.Date == d))).ToList();
+        bySource = monthUsage.GroupBy(u => u.Source).Select(g => new SourceRow(g.Key, g.Count(), g.Sum(x => x.CostUsd)))
+            .OrderByDescending(s => s.Cost).ToList();
+        demos = monthUsage.Count(u => u.Source == "demo");
+
+        var costByUser = monthUsage.Where(u => u.UserId != null).GroupBy(u => u.UserId!.Value)
+            .Select(g => new { UserId = g.Key, Cost = g.Sum(x => x.CostUsd) }).OrderByDescending(x => x.Cost).Take(15).ToList();
+        var ids = costByUser.Select(c => c.UserId).ToList();
+        var userInfo = await db.Users.Where(u => ids.Contains(u.Id)).Select(u => new { u.Id, u.Email, u.Plan }).ToListAsync();
+        topAccounts = costByUser.Select(c =>
+        {
+            var u = userInfo.FirstOrDefault(x => x.Id == c.UserId);
+            return new AccountRow(u?.Email ?? $"#{c.UserId}", u?.Plan ?? Plans.Free, Price(u?.Plan ?? Plans.Free), c.Cost);
+        }).ToList();
+
+        runs = await db.ModuleRuns.CountAsync(r => r.CreatedAt >= month && r.Status != "manual");
+        pages = await db.Pages.CountAsync(p => p.IsPublished);
+        leads = await db.Leads.CountAsync(l => l.CreatedAt >= month);
+        posted = await db.Posts.CountAsync(p => p.Status == PostStatus.Posted && p.PostedAt >= month);
+    }
+}

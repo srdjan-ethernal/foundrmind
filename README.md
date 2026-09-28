@@ -25,6 +25,8 @@ dotnet user-secrets set ANTHROPIC_API_KEY "<your key>"
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key (required for AI) |
 | `ANTHROPIC_MODEL` | Override model (default `claude-opus-5`) |
+| `AI_DAILY_BUDGET_USD` | Site-wide daily cap on Claude spend; new AI calls are refused once reached (0 = no cap) |
+| `ADMIN_EMAILS` | Comma-separated emails that can open `/app/admin` (revenue, AI spend, margins) |
 | `ConnectionStrings__Default` | `Host=...` → PostgreSQL, otherwise SQLite file (`Data Source=foundrmind.db`) |
 | `DATA_PROTECTION_PATH` | Persistent folder for auth-cookie keys (set in Docker image to `/data/keys`) |
 | `DISABLE_HTTPS_REDIRECT` | `1` when TLS is terminated by a proxy (Caddy, Azure) |

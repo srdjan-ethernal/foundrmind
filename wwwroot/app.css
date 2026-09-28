@@ -513,3 +513,5 @@ h1:focus { outline: none; }
 .invite-row { display: flex; gap: 8px; margin: 12px 0 8px; }
 .invite-row input { flex: 1; max-width: 420px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
 .tbl td.right { text-align: right; }
+.dns-help { background: #f7f8fc; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0 12px; }
+.dns-help code, .tbl code { background: #eef0fb; padding: 1px 6px; border-radius: 5px; }

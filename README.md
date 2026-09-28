@@ -33,6 +33,8 @@ dotnet user-secrets set ANTHROPIC_API_KEY "<your key>"
 | `PUBLIC_BASE_URL` | Public origin used for OAuth redirect URLs, e.g. `https://foundrmind.com` (defaults to the request host) |
 | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | Enables LinkedIn auto-posting (optional `LINKEDIN_API_VERSION`, default `202606`) |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | Enables X auto-posting |
+| `PAGES_TARGET` | Hostname customers CNAME their domains to (defaults to the `PUBLIC_BASE_URL` host) |
+| `PUBLIC_IP` | Server IPv4 shown for root-domain A records and used in DNS verification |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE` | Enables paid plans (see Billing) |
 
 **Database schema:** PostgreSQL uses EF Core migrations (`Data/Migrations`), applied automatically on startup. Local SQLite uses `EnsureCreated`; delete `foundrmind.db` after model changes. Add a migration with `dotnet tool restore && dotnet ef migrations add <Name> -o Data/Migrations`.
@@ -56,6 +58,12 @@ Plans: Free, Pro ($99/mo), Scale ($399/mo). Stripe Checkout handles payment, the
 4. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`. Use test-mode keys first (`sk_test_...`, card `4242 4242 4242 4242`).
 
 Without these settings the billing page shows the plans with upgrades disabled.
+
+## Custom domains (Scale)
+
+Scale customers can serve a business's published pages on their own domain (up to 3 per business) from **Published pages → Custom domains**. The customer adds a CNAME to `PAGES_TARGET` (or an A record to `PUBLIC_IP` for a root domain) and presses **Verify**; the app checks DNS points at us.
+
+On a verified domain only that business's pages are reachable: `/` opens the chosen home page, `/{slug}` and `/p/{slug}` open pages, and the lead form posts to `/p/{slug}/lead`. The app, login and API return 404 there. Caddy issues certificates on demand, but only for hostnames `/internal/tls-ask` approves (verified domains and our own host).
 
 ## Deploy: Hetzner (VPS + Docker)
 

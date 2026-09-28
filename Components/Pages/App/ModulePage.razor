@@ -8,6 +8,7 @@
 @inject Ai AiSvc
 @inject Usage UsageSvc
 @inject IJSRuntime JS
+@inject Domains DomainSvc
 
 <PageTitle>@(Def?.Name ?? "Module") · @(Project?.Name) · Foundrmind</PageTitle>
 
@@ -375,6 +376,7 @@ else if (Project != null)
         slug = s;
         error = null;
         publishedUrl = $"/p/{s}";
+        foreach (var host in await db.CustomDomains.Where(d => d.ProjectId == Id).Select(d => d.Host).ToListAsync()) DomainSvc.Invalidate(host);
     }
 
     static string StatusLabel(string s) => s switch { "manual" => "manual", "refused" => "declined", "error" => "incomplete", _ => "" };

@@ -13,6 +13,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<ScheduledPost> Posts => Set<ScheduledPost>();
     public DbSet<AiUsage> AiUsage => Set<AiUsage>();
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<CustomDomain> CustomDomains => Set<CustomDomain>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -26,6 +27,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<AiUsage>().HasIndex(u => u.CreatedAt);
         b.Entity<TeamMember>().HasIndex(t => new { t.OwnerUserId, t.Email }).IsUnique();
         b.Entity<TeamMember>().HasIndex(t => t.MemberUserId);
+        b.Entity<CustomDomain>().HasIndex(d => d.Host).IsUnique();
         b.Entity<AiUsage>().Property(u => u.CostUsd).HasPrecision(12, 6);
         b.Entity<ModuleRun>().Property(r => r.CostUsd).HasPrecision(12, 6);
     }

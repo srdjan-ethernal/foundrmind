@@ -27,6 +27,9 @@ public static class Plans
     /// <summary>Team seats in addition to the owner.</summary>
     public static int Seats(string plan) => plan == Scale ? 5 : 0;
 
+    /// <summary>Custom domains per business.</summary>
+    public static int Domains(string plan) => plan == Scale ? 3 : 0;
+
     public static int MonthlyRuns(string plan) => plan switch
     {
         Pro => 1500,
@@ -172,4 +175,16 @@ public class TeamMember
     public int? MemberUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? AcceptedAt { get; set; }
+}
+
+/// <summary>A customer's own domain serving one business's published pages (Scale).</summary>
+public class CustomDomain
+{
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+    public Project? Project { get; set; }
+    public string Host { get; set; } = "";
+    public int? HomePageId { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

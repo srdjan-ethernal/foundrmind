@@ -41,16 +41,74 @@ else if (Project != null)
                 </div>
             }
         </div>
+
+        <section class="panel mt">
+            <h2>Custom domains</h2>
+            @if (domainLimit == 0)
+            {
+                <p class="app-muted">Serve your pages on your own domain (like <b>yourbrand.com</b>) with automatic HTTPS. Included in <a href="/app/billing">Scale</a>.</p>
+            }
+            else if (!IsOwner)
+            {
+                <p class="app-muted">Only the business owner can manage domains.</p>
+            }
+            else
+            {
+                <p class="app-muted">Point your domain at Foundrmind, verify it, and pick which page it opens. HTTPS is set up automatically. Your app and login are never reachable on it.</p>
+                @if (domainMsg != null) { <div class="notice @(domainOk ? "good" : "bad")">@domainMsg</div> }
+                <div class="invite-row">
+                    <input placeholder="www.yourbrand.com" @bind="newHost" @bind:event="oninput" maxlength="253" />
+                    <button class="btn" disabled="@(domains.Count >= domainLimit || string.IsNullOrWhiteSpace(newHost))" @onclick="AddDomain">Add domain</button>
+                </div>
+                <div class="dns-help small">
+                    At your DNS provider add a <b>CNAME</b> record: name <code>www</code> (or your subdomain) → <code>@DomainSvc.Target</code>
+                    @if (DomainSvc.PublicIp != null) { <span>. For a root domain use an <b>A</b> record → <code>@DomainSvc.PublicIp</code></span> }
+                </div>
+                @if (domains.Count > 0)
+                {
+                    <table class="tbl">
+                        <thead><tr><th>Domain</th><th>Status</th><th>Opens page</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var d in domains)
+                            {
+                                <tr>
+                                    <td class="mono">@if (d.VerifiedAt != null) { <a href="https://@d.Host" target="_blank" rel="noopener">@d.Host ↗</a> } else { @d.Host }</td>
+                                    <td>@(d.VerifiedAt != null ? "✓ Live" : "Waiting for DNS")</td>
+                                    <td>
+                                        <select value="@d.HomePageId" @onchange="e => SetHome(d, e.Value?.ToString())">
+                                            <option value="">First published page</option>
+                                            @foreach (var r in rows.Where(r => r.P.IsPublished)) { <option value="@r.P.Id">@r.P.Title</option> }
+                                        </select>
+                                    </td>
+                                    <td class="right">
+                                        @if (d.VerifiedAt == null) { <button class="chip" disabled="@checking" @onclick="() => Verify(d)">@(checking ? "Checking…" : "Verify")</button> }
+                                        <button class="chip danger" @onclick="() => RemoveDomain(d)">Remove</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </section>
     </div>
 }
 
 @code {
+    [Inject] Domains DomainSvc { get; set; } = default!;
     record Row(PublishedPage P, int Leads);
     List<Row> rows = new();
+    List<CustomDomain> domains = new();
+    int domainLimit;
+    string? newHost, domainMsg;
+    bool domainOk, checking;
 
     protected override async Task OnProjectLoadedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+        var ownerPlan = await db.Users.Where(u => u.Id == Project!.UserId).Select(u => u.Plan).FirstAsync();
+        domainLimit = Plans.Domains(ownerPlan);
+        domains = await db.CustomDomains.Where(d => d.ProjectId == Id).OrderBy(d => d.CreatedAt).ToListAsync();
         var pages = await db.Pages.Where(p => p.ProjectId == Id).OrderByDescending(p => p.UpdatedAt).ToListAsync();
         var sources = await db.Leads.Where(l => l.ProjectId == Id).GroupBy(l => l.Source).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
         rows = pages.Select(p => new Row(p, sources.FirstOrDefault(s => s.Key == $"Page /p/{p.Slug}")?.N ?? 0)).ToList();
@@ -64,6 +122,7 @@ else if (Project != null)
         var row = await db.Pages.FirstAsync(x => x.Id == p.Id && x.ProjectId == Id);
         row.IsPublished = p.IsPublished = !p.IsPublished;
         await db.SaveChangesAsync();
+        InvalidateDomains();
     }
 
     async Task Delete(PublishedPage p)
@@ -73,5 +132,61 @@ else if (Project != null)
         db.Pages.Remove(row);
         await db.SaveChangesAsync();
         rows.RemoveAll(r => r.P.Id == p.Id);
+        InvalidateDomains();
     }
+
+    void InvalidateDomains() { foreach (var d in domains) DomainSvc.Invalidate(d.Host); }
+
+    async Task AddDomain()
+    {
+        domainMsg = null;
+        if (!IsOwner || domains.Count >= domainLimit) return;
+        var host = Domains.Normalize(newHost ?? "");
+        if (host == null) { DomainSay("That doesn't look like a domain. Use something like www.yourbrand.com.", false); return; }
+        if (DomainSvc.IsAppHost(host)) { DomainSay("That's Foundrmind's own domain.", false); return; }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.CustomDomains.AnyAsync(d => d.Host == host)) { DomainSay("That domain is already connected to a business.", false); return; }
+        db.CustomDomains.Add(new CustomDomain { ProjectId = Id, Host = host });
+        await db.SaveChangesAsync();
+        newHost = "";
+        domains = await db.CustomDomains.Where(d => d.ProjectId == Id).OrderBy(d => d.CreatedAt).ToListAsync();
+        DomainSay($"Added {host}. Create the DNS record below, then press Verify.", true);
+    }
+
+    async Task Verify(CustomDomain d)
+    {
+        checking = true; domainMsg = null;
+        var (ok, detail) = await DomainSvc.VerifyDnsAsync(d.Host);
+        checking = false;
+        if (ok)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var row = await db.CustomDomains.FirstAsync(x => x.Id == d.Id && x.ProjectId == Id);
+            row.VerifiedAt = d.VerifiedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            DomainSvc.Invalidate(d.Host);
+            DomainSay($"{d.Host} is live. HTTPS is issued on the first visit (takes a few seconds).", true);
+        }
+        else DomainSay(detail, false);
+    }
+
+    async Task SetHome(CustomDomain d, string? value)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.CustomDomains.FirstAsync(x => x.Id == d.Id && x.ProjectId == Id);
+        row.HomePageId = d.HomePageId = int.TryParse(value, out var pid) && rows.Any(r => r.P.Id == pid) ? pid : null;
+        await db.SaveChangesAsync();
+        DomainSvc.Invalidate(d.Host);
+    }
+
+    async Task RemoveDomain(CustomDomain d)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var row = await db.CustomDomains.FirstOrDefaultAsync(x => x.Id == d.Id && x.ProjectId == Id);
+        if (row != null) { db.CustomDomains.Remove(row); await db.SaveChangesAsync(); }
+        domains.Remove(d);
+        DomainSvc.Invalidate(d.Host);
+    }
+
+    void DomainSay(string text, bool ok) { domainMsg = text; domainOk = ok; }
 }

@@ -45,6 +45,8 @@ builder.Services.AddSingleton<ISocialProvider, LinkedInProvider>();
 builder.Services.AddSingleton<ISocialProvider, XProvider>();
 builder.Services.AddSingleton<SocialService>();
 builder.Services.AddSingleton<Billing>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<Domains>();
 builder.Services.AddHostedService<PostScheduler>();
 
 // Behind Caddy / Azure front ends: trust X-Forwarded-* so we see the real client IP and scheme.
@@ -66,6 +68,20 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseForwardedHeaders();
+
+// Customer domains: only that business's published pages are reachable there (see Domains).
+app.Use(async (ctx, next) =>
+{
+    var host = ctx.Request.Host.Host.ToLowerInvariant();
+    var domains = ctx.RequestServices.GetRequiredService<Domains>();
+    if (domains.IsAppHost(host)) { await next(); return; }
+    var resolved = await domains.ResolveAsync(host);
+    if (resolved == null) { await next(); return; }
+    var mapped = Domains.MapPath(resolved, ctx.Request.Path.Value ?? "/");
+    if (mapped == null) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+    ctx.Request.Path = mapped;
+    await next();
+});
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -74,6 +90,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 if (app.Configuration["DISABLE_HTTPS_REDIRECT"] != "1") app.UseHttpsRedirection();
 
+app.UseRouting(); // explicit, so the custom-domain path rewrite above happens before routing
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
@@ -155,6 +172,14 @@ app.MapPost("/stripe/webhook", async (HttpRequest req, Billing billing) =>
     var json = await reader.ReadToEndAsync();
     return await billing.HandleWebhookAsync(json, req.Headers["Stripe-Signature"].ToString()) ? Results.Ok() : Results.BadRequest();
 }).DisableAntiforgery();
+
+// Caddy on-demand TLS asks here before issuing a certificate for a hostname.
+app.MapGet("/internal/tls-ask", async (string? domain, Domains domains) =>
+{
+    var host = Domains.Normalize(domain ?? "");
+    if (host == null) return Results.NotFound();
+    return domains.IsAppHost(host) || await domains.ResolveAsync(host) != null ? Results.Ok() : Results.NotFound();
+});
 
 app.MapPost("/logout", async (HttpContext ctx) =>
 {

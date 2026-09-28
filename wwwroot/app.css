@@ -515,3 +515,23 @@ h1:focus { outline: none; }
 .tbl td.right { text-align: right; }
 .dns-help { background: #f7f8fc; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0 12px; }
 .dns-help code, .tbl code { background: #eef0fb; padding: 1px 6px; border-radius: 5px; }
+
+/* Analytics */
+.stages a.stage { text-decoration: none; }
+.legend { font-size: .8rem; color: var(--ink-3); display: inline-flex; gap: 6px; align-items: center; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-left: 8px; }
+.lg-views { background: var(--violet); }
+.lg-leads { background: var(--amber); }
+.bars-2 { height: 180px; }
+.bar-pair { flex: 1; width: 100%; display: flex; align-items: flex-end; gap: 2px; }
+.bar-pair i { flex: 1; min-height: 2px; border-radius: 4px 4px 1px 1px; background: var(--violet); }
+.bar-pair i.lead { background: var(--amber); }
+.share { display: block; width: 100%; max-width: 160px; height: 8px; border-radius: 99px; background: #eef0fb; overflow: hidden; }
+.share i { display: block; height: 100%; background: var(--grad); }
+.funnel { display: grid; gap: 8px; margin-top: 10px; }
+.funnel-row { display: grid; grid-template-columns: 90px 1fr 40px 80px; gap: 10px; align-items: center; font-size: .9rem; }
+.funnel-bar { height: 12px; border-radius: 99px; background: #f1f2f8; overflow: hidden; }
+.funnel-bar i { display: block; height: 100%; background: var(--grad); border-radius: 99px; }
+.funnel-row em { font-style: normal; color: var(--ink-3); font-size: .82rem; text-align: right; }
+.sub.up { color: var(--good) !important; }
+.sub.down { color: var(--bad) !important; }

@@ -181,6 +181,16 @@ app.MapGet("/internal/tls-ask", async (string? domain, Domains domains) =>
     return domains.IsAppHost(host) || await domains.ResolveAsync(host) != null ? Results.Ok() : Results.NotFound();
 });
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/dev/seed", async (HttpContext ctx, IDbContextFactory<AppDb> dbf) =>
+    {
+        await using var db = await dbf.CreateDbContextAsync();
+        var id = await DevSeed.RunAsync(db, ctx.User.UserId()!.Value);
+        return Results.Redirect($"/app/p/{id}/analytics");
+    }).RequireAuthorization();
+}
+
 app.MapPost("/logout", async (HttpContext ctx) =>
 {
     await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -229,8 +239,17 @@ app.MapGet("/p/{slug}", async (string slug, IDbContextFactory<AppDb> dbf, HttpCo
     await using var db = await dbf.CreateDbContextAsync();
     var page = await db.Pages.FirstOrDefaultAsync(p => p.Slug == slug && p.IsPublished);
     if (page == null) return Results.NotFound();
-    page.Views++;
-    await db.SaveChangesAsync();
+    if (!IsBot(ctx.Request.Headers.UserAgent.ToString()))
+    {
+        page.Views++;
+        db.PageViews.Add(new PageView
+        {
+            PageId = page.Id, ProjectId = page.ProjectId,
+            Referrer = ReferrerHost(ctx.Request.Headers.Referer.ToString(), ctx.Request.Host.Host),
+            UtmSource = Trunc(ctx.Request.Query["utm_source"].ToString().ToLowerInvariant(), 60),
+        });
+        await db.SaveChangesAsync();
+    }
 
     ctx.Response.Headers.ContentSecurityPolicy = "sandbox allow-forms allow-scripts allow-popups allow-popups-to-escape-sandbox";
     return Results.Content(WireLeadForm(page.Html, slug), "text/html; charset=utf-8");
@@ -275,6 +294,13 @@ static string BaseUrl(HttpContext ctx)
 }
 
 static string RedirectUri(HttpContext ctx, string provider) => $"{BaseUrl(ctx)}/connect/{provider}/callback";
+
+static bool IsBot(string ua) => ua.Length == 0 || System.Text.RegularExpressions.Regex.IsMatch(ua, "bot|crawl|spider|slurp|preview|facebookexternalhit|curl|wget|python-requests", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+// Only the referring site's host is kept; internal navigation counts as direct.
+static string ReferrerHost(string referer, string ownHost) =>
+    Uri.TryCreate(referer, UriKind.Absolute, out var u) && !string.Equals(u.Host, ownHost, StringComparison.OrdinalIgnoreCase)
+        ? (u.Host.StartsWith("www.") ? u.Host[4..] : u.Host).ToLowerInvariant() : "";
 
 static string Trunc(string s, int max) => s.Length > max ? s[..max] : s.Trim();
 

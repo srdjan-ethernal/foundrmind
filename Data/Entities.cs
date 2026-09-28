@@ -188,3 +188,14 @@ public class CustomDomain
     public DateTime? VerifiedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>One view of a published page. Stores no IP or user agent, only the referring site and UTM source.</summary>
+public class PageView
+{
+    public long Id { get; set; }
+    public int PageId { get; set; }
+    public int ProjectId { get; set; }
+    public DateTime At { get; set; } = DateTime.UtcNow;
+    public string Referrer { get; set; } = "";
+    public string UtmSource { get; set; } = "";
+}

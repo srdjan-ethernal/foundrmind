@@ -1,0 +1,190 @@
+@page "/app/p/{Id:int}/analytics"
+@attribute [Authorize]
+@layout AppLayout
+@inherits ProjectBase
+
+<PageTitle>Analytics · @(Project?.Name) · Foundrmind</PageTitle>
+
+@if (NotFound)
+{
+    <div class="app-page"><h1>Not found</h1><a href="/app">← Back</a></div>
+}
+else if (Project != null)
+{
+    <div class="app-page wide">
+        <div class="app-head">
+            <div>
+                <div class="crumb"><a href="/app/p/@Id">@Project.Name</a> / Analytics</div>
+                <h1>📈 Analytics</h1>
+                <p class="app-muted">Visits to your published pages, where they come from, and what they turn into. No cookies or personal data are collected from visitors.</p>
+            </div>
+            <div class="stages">
+                @foreach (var d in new[] { 7, 30, 90 })
+                {
+                    <a class="stage @(Range == d ? "on" : "")" href="/app/p/@Id/analytics?days=@d">@d days</a>
+                }
+            </div>
+        </div>
+
+        <div class="stats stats6">
+            <div class="stat"><span>Page views</span><b>@views.ToString("N0")</b>@Delta(views, prevViews)</div>
+            <div class="stat"><span>Leads</span><b>@leadsCount.ToString("N0")</b>@Delta(leadsCount, prevLeads)</div>
+            <div class="stat"><span>Conversion</span><b>@(views == 0 ? "–" : $"{(double)pageLeads / views:P1}")</b><em class="sub">page sign-ups / views</em></div>
+            <div class="stat"><span>Won</span><b>@wonValue.ToString("C0")</b><em class="sub">@won deals</em></div>
+            <div class="stat"><span>Posts published</span><b>@posted</b></div>
+            <div class="stat"><span>AI runs</span><b>@runs</b></div>
+        </div>
+
+        <section class="panel">
+            <div class="row-between">
+                <h2>Views and leads per day</h2>
+                <span class="legend"><i class="lg-views"></i> Views <i class="lg-leads"></i> Leads</span>
+            </div>
+            @if (views == 0 && leadsCount == 0)
+            {
+                <p class="app-muted">No traffic in this period yet. Publish a page and share its link (add <code>?utm_source=linkedin</code> to see which channel works).</p>
+            }
+            else
+            {
+                var max = Math.Max(1, days.Max(d => Math.Max(d.Views, d.Leads)));
+                <div class="bars bars-2" style="grid-template-columns: repeat(@days.Count, 1fr)">
+                    @foreach (var d in days)
+                    {
+                        <div class="bar" title="@d.Day.ToString("MMM d"): @d.Views views, @d.Leads leads">
+                            <div class="bar-pair">
+                                <i style="height:@(d.Views * 100 / max)%"></i>
+                                <i class="lead" style="height:@(d.Leads * 100 / max)%"></i>
+                            </div>
+                            <span>@(days.Count <= 31 || d.Day.Day % 7 == 1 ? d.Day.ToString("%d") : "")</span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <div class="split">
+            <section class="panel">
+                <h2>Traffic sources</h2>
+                @if (sources.Count == 0) { <p class="app-muted">No visits yet.</p> }
+                else
+                {
+                    <table class="tbl">
+                        <thead><tr><th>Source</th><th>Views</th><th>Share</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in sources)
+                            {
+                                <tr><td>@s.Name</td><td>@s.Views</td><td><span class="share"><i style="width:@(s.Views * 100 / Math.Max(1, views))%"></i></span></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <h2 class="mt">Pages</h2>
+                @if (pages.Count == 0) { <p class="app-muted">No published pages. <a href="/app/p/@Id/m/funnel">Build one</a>.</p> }
+                else
+                {
+                    <table class="tbl">
+                        <thead><tr><th>Page</th><th>Views</th><th>Sign-ups</th><th>Conv.</th></tr></thead>
+                        <tbody>
+                            @foreach (var p in pages)
+                            {
+                                <tr><td>@p.Title</td><td>@p.Views</td><td>@p.Leads</td><td>@(p.Views == 0 ? "–" : $"{(double)p.Leads / p.Views:P1}")</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            <section class="panel">
+                <h2>Pipeline</h2>
+                <p class="app-muted small">All leads by stage, today.</p>
+                <div class="funnel">
+                    @{ var top = Math.Max(1, pipeline.Max(s => s.Count)); }
+                    @foreach (var s in pipeline)
+                    {
+                        <div class="funnel-row">
+                            <span>@s.Stage</span>
+                            <div class="funnel-bar"><i style="width:@(s.Count * 100 / top)%"></i></div>
+                            <b>@s.Count</b>
+                            <em>@(s.Value > 0 ? s.Value.ToString("C0") : "")</em>
+                        </div>
+                    }
+                </div>
+                <h2 class="mt">Lead sources</h2>
+                @if (leadSources.Count == 0) { <p class="app-muted">No leads in this period.</p> }
+                else
+                {
+                    <ul class="kv">
+                        @foreach (var s in leadSources) { <li><span>@s.Name</span><b>@s.Count</b></li> }
+                    </ul>
+                }
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "days")] public int? DaysParam { get; set; }
+    int Range => DaysParam is 7 or 30 or 90 ? DaysParam.Value : 30;
+
+    record DayRow(DateTime Day, int Views, int Leads);
+    record SourceRow(string Name, int Views);
+    record PageRow(string Title, int Views, int Leads);
+    record StageRow(string Stage, int Count, decimal Value);
+    record CountRow(string Name, int Count);
+
+    int views, prevViews, leadsCount, prevLeads, pageLeads, won, posted, runs;
+    decimal wonValue;
+    List<DayRow> days = new();
+    List<SourceRow> sources = new();
+    List<PageRow> pages = new();
+    List<StageRow> pipeline = new();
+    List<CountRow> leadSources = new();
+
+    protected override async Task OnProjectLoadedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var today = DateTime.UtcNow.Date;
+        var from = today.AddDays(-(Range - 1));
+        var prevFrom = from.AddDays(-Range);
+
+        var viewRows = await db.PageViews.Where(v => v.ProjectId == Id && v.At >= prevFrom)
+            .Select(v => new { v.At, v.PageId, v.Referrer, v.UtmSource }).ToListAsync();
+        var cur = viewRows.Where(v => v.At >= from).ToList();
+        views = cur.Count;
+        prevViews = viewRows.Count - views;
+
+        var leadRows = await db.Leads.Where(l => l.ProjectId == Id)
+            .Select(l => new { l.CreatedAt, l.Source, l.Stage, l.Value }).ToListAsync();
+        var curLeads = leadRows.Where(l => l.CreatedAt >= from).ToList();
+        leadsCount = curLeads.Count;
+        prevLeads = leadRows.Count(l => l.CreatedAt >= prevFrom && l.CreatedAt < from);
+        pageLeads = curLeads.Count(l => l.Source.StartsWith("Page /p/"));
+        won = leadRows.Count(l => l.Stage == "Won");
+        wonValue = leadRows.Where(l => l.Stage == "Won").Sum(l => l.Value);
+
+        days = Enumerable.Range(0, Range).Select(i => from.AddDays(i))
+            .Select(d => new DayRow(d, cur.Count(v => v.At.Date == d), curLeads.Count(l => l.CreatedAt.Date == d))).ToList();
+
+        sources = cur.GroupBy(v => v.UtmSource.Length > 0 ? v.UtmSource + " (utm)" : v.Referrer.Length > 0 ? v.Referrer : "Direct")
+            .Select(g => new SourceRow(g.Key, g.Count())).OrderByDescending(s => s.Views).Take(10).ToList();
+
+        var pageList = await db.Pages.Where(p => p.ProjectId == Id).Select(p => new { p.Id, p.Title, p.Slug }).ToListAsync();
+        pages = pageList.Select(p => new PageRow(p.Title, cur.Count(v => v.PageId == p.Id), curLeads.Count(l => l.Source == $"Page /p/{p.Slug}")))
+            .OrderByDescending(p => p.Views).ToList();
+
+        pipeline = LeadStages.All.Select(s => new StageRow(s, leadRows.Count(l => l.Stage == s), leadRows.Where(l => l.Stage == s).Sum(l => l.Value))).ToList();
+        leadSources = curLeads.GroupBy(l => l.Source).Select(g => new CountRow(g.Key, g.Count())).OrderByDescending(s => s.Count).ToList();
+
+        posted = await db.Posts.CountAsync(p => p.ProjectId == Id && p.Status == PostStatus.Posted && p.PostedAt >= from);
+        runs = await db.ModuleRuns.CountAsync(r => r.ProjectId == Id && r.CreatedAt >= from);
+    }
+
+    static MarkupString Delta(int now, int before)
+    {
+        // Percentages on a tiny base are noise; only compare once the previous period had some volume.
+        if (before < 10) return new MarkupString(now == 0 ? "" : $"<em class=\"sub\">vs {before} in previous period</em>");
+        var pct = (now - before) * 100.0 / before;
+        var cls = pct >= 0 ? "up" : "down";
+        return new MarkupString($"<em class=\"sub {cls}\">{(pct >= 0 ? "▲" : "▼")} {Math.Abs(pct):0}% vs previous</em>");
+    }
+}
